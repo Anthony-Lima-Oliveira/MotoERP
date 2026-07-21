@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Produtos</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<h2>Cadastro de Produtos</h2>
+<a href="/home">⬅ Voltar</a>
+<form method="POST" action="/add_produto">
+<input name="id" placeholder="ID" required>
+<input name="nome" placeholder="Nome" required>
+<input name="preco" placeholder="Preço" type="number" step="0.01" required>
+<input name="quantidade" placeholder="Quantidade" type="number" min="0" required>
+    <button>Adicionar</button>
+</form>
+
+<table>
+    <tr>
+    <th>ID</th>
+    <th>Nome</th>
+    <th>Preço</th>
+    <th>Qtd</th>
+    <th>Movimentação</th>
+    <th>Ação</th>
+    </tr>
+
+    {% for p in produtos %}
+    <tr>
+    <td>{{ p[0] }}</td>
+    <td>{{ p[1] }}</td>
+    <td>R$ {{ p[2] }}</td>
+    <td>{{ p[3] }}</td>
+
+    <td>
+        <form method="POST" action="/movimentar_produto" class="form-movimento">
+            <input type="hidden" name="produto_id" value="{{ p[0] }}">
+
+            <select name="tipo">
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saída</option>
+            </select>
+
+            <input type="number" name="quantidade" placeholder="Qtd" min="1" required>
+
+            <button>Confirmar</button>
+        </form>
+    </td>
+
+    <td>
+        <a href="/delete_produto/{{ p[0] }}">Excluir</a>
+    </td>
+</tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
