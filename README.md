@@ -167,8 +167,8 @@ Este projeto foi desenvolvido para colocar em prática conhecimentos adquiridos 
 
 Estudante de Engenharia da Computação
 
-- GitHub: https://github.com/SEU-USUARIO
-- LinkedIn: https://linkedin.com/in/SEU-LINK
+- GitHub: https://github.com/Anthony-Lima-Oliveira
+- LinkedIn: https://linkedin.com/in/anthony-lima-de-oliveira-3312a1300/
 
 ---
 
