@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session
+py --versionfrom flask import Flask, render_template, request, redirect, session
 import sqlite3
 from database import criar_tabelas
 from datetime import datetime
