@@ -131,3 +131,34 @@ th {
     width: auto;
     padding: 8px 12px;
 }
+
+/* ---- mensagens ---- */
+.msg {
+    width: 300px;
+    margin: 10px auto;
+    padding: 10px;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.msg.erro {
+    background-color: #fdecea;
+    color: #b3261e;
+    border: 1px solid #f5c2be;
+}
+
+.msg.ok {
+    background-color: #e8f5e9;
+    color: #1b5e20;
+    border: 1px solid #b7dfb9;
+}
+
+/* ---- botão excluir ---- */
+.btn-excluir {
+    background-color: #d93025;
+}
+
+.btn-excluir:hover {
+    background-color: #a52714;
+}

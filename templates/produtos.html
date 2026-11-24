@@ -9,10 +9,17 @@
 
 <h2>Cadastro de Produtos</h2>
 <a href="/home">⬅ Voltar</a>
+
+{% with mensagens = get_flashed_messages(with_categories=true) %}
+    {% for categoria, mensagem in mensagens %}
+    <p class="msg {{ categoria }}">{{ mensagem }}</p>
+    {% endfor %}
+{% endwith %}
+
 <form method="POST" action="/add_produto">
 <input name="id" placeholder="ID" required>
 <input name="nome" placeholder="Nome" required>
-<input name="preco" placeholder="Preço" type="number" step="0.01" required>
+<input name="preco" placeholder="Preço" type="number" step="0.01" min="0" required>
 <input name="quantidade" placeholder="Quantidade" type="number" min="0" required>
     <button>Adicionar</button>
 </form>
@@ -24,14 +31,16 @@
     <th>Preço</th>
     <th>Qtd</th>
     <th>Movimentação</th>
+    {% if tipo == 'admin' %}
     <th>Ação</th>
+    {% endif %}
     </tr>
 
     {% for p in produtos %}
     <tr>
     <td>{{ p[0] }}</td>
     <td>{{ p[1] }}</td>
-    <td>R$ {{ p[2] }}</td>
+    <td>R$ {{ "%.2f"|format(p[2]) }}</td>
     <td>{{ p[3] }}</td>
 
     <td>
@@ -49,9 +58,14 @@
         </form>
     </td>
 
+    {% if tipo == 'admin' %}
     <td>
-        <a href="/delete_produto/{{ p[0] }}">Excluir</a>
+        <form method="POST" action="/delete_produto/{{ p[0] }}" class="form-movimento"
+              onsubmit="return confirm('Excluir o produto {{ p[1] }}?');">
+            <button class="btn-excluir">Excluir</button>
+        </form>
     </td>
+    {% endif %}
 </tr>
     {% endfor %}
 </table>
