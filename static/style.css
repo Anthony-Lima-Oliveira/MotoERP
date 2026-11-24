@@ -1,0 +1,133 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f6f9;
+    margin: 0;
+    padding: 0;
+}
+
+h1 {
+    text-align: center;
+    color: #2d6cdf;
+    font-size: 48px;
+    margin-top: 40px;
+    margin-bottom: 20px;
+}
+
+h2 {
+    text-align: center;
+    color: #333;
+}
+
+form {
+    background: white;
+    padding: 20px;
+    margin: 20px auto;
+    width: 300px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+input {
+    width: 100%;
+    padding: 12px;
+    margin: 8px 0;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+}
+
+button {
+    width: 100%;
+    padding: 10px;
+    background-color: #2d6cdf;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #1b4fb3;
+}
+
+a {
+    display: inline-block;
+    margin: 10px;
+    padding: 10px 15px;
+    background-color: #2d6cdf;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+a:hover {
+    background-color: #1b4fb3;
+}
+
+.container {
+    text-align: center;
+}
+
+table {
+    margin: 20px auto;
+    border-collapse: collapse;
+    width: 80%;
+    background: white;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+th, td {
+    padding: 12px;
+    border-bottom: 1px solid #ddd;
+    text-align: center;
+}
+
+th {
+    background-color: #2d6cdf;
+    color: white;
+}
+
+.logo {
+    display: block;
+    margin: 20px auto 10px auto;
+    width: 260px;
+    height: auto;
+}
+
+.container-home {
+    text-align: center;
+    margin-top: 80px;
+}
+
+.menu-btn {
+    display: inline-block;
+    width: 220px;
+    padding: 18px;
+    margin: 15px;
+    font-size: 22px;
+    font-weight: bold;
+    background-color: #2d6cdf;
+    color: white;
+    text-decoration: none;
+    border-radius: 10px;
+}
+
+.form-movimento {
+    background: none;
+    box-shadow: none;
+    padding: 0;
+    margin: 0;
+    width: auto;
+}
+
+.form-movimento input,
+.form-movimento select {
+    width: 90px;
+    padding: 8px;
+    margin: 5px;
+}
+
+.form-movimento button {
+    width: auto;
+    padding: 8px 12px;
+}

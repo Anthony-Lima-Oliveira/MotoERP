@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MotoERP</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<img src="{{ url_for('static', filename='logo.png') }}" alt="MotoERP Logo" class="logo">
+
+<form method="POST">
+    <input name="usuario" placeholder="Usuário">
+    <input name="senha" type="password" placeholder="Senha">
+    <button>Entrar</button>
+</form>
+
+</body>
+</html>

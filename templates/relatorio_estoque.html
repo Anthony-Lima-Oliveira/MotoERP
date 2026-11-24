@@ -1,0 +1,40 @@
+_<!DOCTYPE html>
+<html>
+<head>
+    <title>Relatório de Estoque</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+<h2>Relatório de Estoque</h2>
+
+<a href="/home" class="voltar">⬅ Voltar</a>
+
+<div class="container">
+    <h3>Total de itens em estoque: {{ total_itens }}</h3>
+    <h3>Valor total em estoque: R$ {{ "%.2f"|format(valor_total) }}</h3>
+</div>
+
+<table>
+    <tr>
+        <th>ID</th>
+        <th>Produto</th>
+        <th>Preço</th>
+        <th>Quantidade</th>
+        <th>Valor em Estoque</th>
+    </tr>
+
+    {% for p in produtos %}
+    <tr>
+        <td>{{ p[0] }}</td>
+        <td>{{ p[1] }}</td>
+        <td>R$ {{ "%.2f"|format(p[2]) }}</td>
+        <td>{{ p[3] }}</td>
+        <td>R$ {{ "%.2f"|format(p[2] * p[3]) }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>
