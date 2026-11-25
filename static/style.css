@@ -1,164 +1,605 @@
+/* ==========================================================
+   MotoERP — tema escuro
+   Cores tiradas do logo: azul elétrico sobre asfalto escuro.
+   ========================================================== */
+
+:root {
+    --asfalto: #12151a;      /* fundo da página */
+    --garagem: #191d24;      /* painéis e tabelas */
+    --chassi: #222833;       /* campos, cabeçalho de tabela */
+    --linha: #2e3542;        /* bordas */
+
+    --azul: #2f80ff;
+    --azul-botao: #2368e2;
+    --azul-claro: #6fa8ff;
+
+    --texto: #e9edf3;
+    --apagado: #93a0b3;
+
+    --ok: #3ecf8e;
+    --alerta: #f5b544;
+    --erro: #ff6b5e;
+
+    --raio: 10px;
+    --fonte: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+             Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html { color-scheme: dark; }
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f6f9;
     margin: 0;
-    padding: 0;
+    min-height: 100vh;
+    background-color: var(--asfalto);
+    /* brilho azul no topo, lembrando o brilho do logo */
+    background-image: radial-gradient(900px 320px at 50% -90px, rgba(47, 128, 255, 0.22), transparent 70%);
+    background-repeat: no-repeat;
+    color: var(--texto);
+    font-family: var(--fonte);
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+a { color: var(--azul-claro); }
+
+:focus-visible {
+    outline: 2px solid var(--azul-claro);
+    outline-offset: 2px;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+/* ---------- barra do topo ---------- */
+.topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: rgba(18, 21, 26, 0.9);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--linha);
+}
+
+.topbar-in {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 16px;
+    min-height: 60px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.marca {
+    font-size: 24px;
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--texto);
+    text-decoration: none;
+}
+
+.marca b { color: var(--azul); }
+
+.nav {
+    flex: 1;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+}
+
+.nav a {
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--apagado);
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.nav a:hover {
+    color: var(--texto);
+    background: var(--chassi);
+}
+
+.nav a[aria-current="page"] {
+    color: var(--texto);
+    background: var(--chassi);
+    box-shadow: inset 0 -2px 0 var(--azul);
+}
+
+.usuario {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    color: var(--apagado);
+}
+
+.usuario strong { color: var(--texto); font-weight: 600; }
+
+.papel {
+    margin-left: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--chassi);
+    font-size: 12px;
+}
+
+/* ---------- página ---------- */
+.pagina {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 32px 16px 64px;
+}
+
+.cabecalho {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 h1 {
-    text-align: center;
-    color: #2d6cdf;
-    font-size: 48px;
-    margin-top: 40px;
-    margin-bottom: 20px;
+    margin: 0;
+    font-size: clamp(28px, 4vw, 40px);
+    line-height: 1.1;
+    font-style: italic;   /* ecoa o itálico do logo */
+    font-weight: 800;
+    letter-spacing: -0.02em;
 }
 
 h2 {
-    text-align: center;
-    color: #333;
+    margin: 0 0 14px;
+    font-size: 18px;
+    font-weight: 650;
 }
 
-form {
-    background: white;
+.sub {
+    margin: 6px 0 0;
+    color: var(--apagado);
+}
+
+.titulo-secao {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.titulo-secao h2 { margin: 0; }
+.titulo-secao a { font-size: 14px; }
+
+.nota {
+    margin: 12px 0 0;
+    font-size: 14px;
+    color: var(--apagado);
+}
+
+/* ---------- painéis ---------- */
+.painel {
+    background: var(--garagem);
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
     padding: 20px;
-    margin: 20px auto;
-    width: 300px;
-    border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-input {
-    width: 100%;
-    padding: 12px;
-    margin: 8px 0;
-    border: 1px solid #ccc;
-    border-radius: 5px;
-    box-sizing: border-box;
-}
+.bloco { margin-bottom: 24px; }
 
-button {
-    width: 100%;
-    padding: 10px;
-    background-color: #2d6cdf;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
-
-button:hover {
-    background-color: #1b4fb3;
-}
-
-a {
-    display: inline-block;
-    margin: 10px;
-    padding: 10px 15px;
-    background-color: #2d6cdf;
-    color: white;
-    text-decoration: none;
-    border-radius: 5px;
-}
-
-a:hover {
-    background-color: #1b4fb3;
-}
-
-.container {
+.vazio {
     text-align: center;
+    color: var(--apagado);
+    padding: 32px 20px;
+}
+
+/* ---------- resumo (números grandes) ---------- */
+.resumo { margin-bottom: 20px; padding: 8px 0; }
+
+.resumo dl {
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.resumo-2 dl { grid-template-columns: repeat(2, 1fr); }
+
+.resumo dl > div {
+    padding: 14px 24px;
+    border-left: 1px solid var(--linha);
+}
+
+.resumo dl > div:first-child { border-left: 0; }
+
+.resumo dt {
+    font-size: 14px;
+    color: var(--apagado);
+}
+
+.resumo dd {
+    margin: 2px 0 0;
+    font-size: clamp(24px, 3vw, 30px);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.resumo dd.alerta { color: var(--alerta); }
+
+.resumo dd.detalhe {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--apagado);
+}
+
+/* ---------- atalhos ---------- */
+.atalhos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 16px;
+    margin-bottom: 36px;
+}
+
+.atalho {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--garagem);
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
+    color: var(--texto);
+    text-decoration: none;
+    transition: border-color 0.15s, background-color 0.15s;
+}
+
+.atalho:hover {
+    border-color: var(--azul);
+    background: var(--chassi);
+}
+
+.atalho strong { display: block; font-weight: 650; }
+.atalho small { color: var(--apagado); font-size: 14px; }
+
+.icone {
+    flex: none;
+    width: 44px;
+    height: 44px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    background: rgba(47, 128, 255, 0.14);
+    color: var(--azul-claro);
+}
+
+.icone svg {
+    width: 22px;
+    height: 22px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+/* ---------- formulários ---------- */
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 14px;
+    color: var(--apagado);
+}
+
+input,
+select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--chassi);
+    color: var(--texto);
+    border: 1px solid var(--linha);
+    border-radius: 8px;
+    font: inherit;
+}
+
+input::placeholder { color: #6b778a; }
+
+input:focus,
+select:focus {
+    outline: none;
+    border-color: var(--azul);
+    box-shadow: 0 0 0 3px rgba(47, 128, 255, 0.25);
+}
+
+.form-grade {
+    display: grid;
+    grid-template-columns: 110px 1fr 150px 150px auto;
+    gap: 12px;
+    align-items: end;
+}
+
+.filtros {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 16px;
+}
+
+.filtros > div { min-width: 210px; }
+
+/* ---------- botões ---------- */
+button,
+.btn {
+    display: inline-block;
+    padding: 10px 16px;
+    background: var(--azul-botao);
+    color: #fff;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+button:hover,
+.btn:hover { background: var(--azul); }
+
+.btn-pequeno { padding: 6px 12px; font-size: 14px; }
+
+.btn-cheio { width: 100%; margin-top: 20px; }
+
+.btn-fantasma {
+    background: transparent;
+    color: var(--texto);
+    border-color: var(--linha);
+}
+
+.btn-fantasma:hover {
+    background: var(--chassi);
+    border-color: var(--apagado);
+}
+
+.btn-perigo {
+    background: transparent;
+    color: var(--erro);
+    border-color: rgba(255, 107, 94, 0.45);
+}
+
+.btn-perigo:hover {
+    background: rgba(255, 107, 94, 0.14);
+    border-color: var(--erro);
+}
+
+/* ---------- avisos ---------- */
+.aviso {
+    margin: 0 0 16px;
+    padding: 12px 16px;
+    border: 1px solid;
+    border-radius: 8px;
+    font-size: 15px;
+}
+
+.aviso-ok {
+    color: var(--ok);
+    background: rgba(62, 207, 142, 0.1);
+    border-color: rgba(62, 207, 142, 0.35);
+}
+
+.aviso-erro {
+    color: var(--erro);
+    background: rgba(255, 107, 94, 0.1);
+    border-color: rgba(255, 107, 94, 0.4);
+}
+
+/* ---------- tabelas ---------- */
+.tabela-wrap {
+    overflow-x: auto;
+    background: var(--garagem);
+    border: 1px solid var(--linha);
+    border-radius: var(--raio);
 }
 
 table {
-    margin: 20px auto;
+    width: 100%;
+    min-width: 560px;
     border-collapse: collapse;
-    width: 80%;
-    background: white;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
-th, td {
-    padding: 12px;
-    border-bottom: 1px solid #ddd;
-    text-align: center;
-}
+.tabela-produtos { min-width: 820px; }
 
 th {
-    background-color: #2d6cdf;
-    color: white;
-}
-
-.logo {
-    display: block;
-    margin: 20px auto 10px auto;
-    width: 260px;
-    height: auto;
-}
-
-.container-home {
-    text-align: center;
-    margin-top: 80px;
-}
-
-.menu-btn {
-    display: inline-block;
-    width: 220px;
-    padding: 18px;
-    margin: 15px;
-    font-size: 22px;
-    font-weight: bold;
-    background-color: #2d6cdf;
-    color: white;
-    text-decoration: none;
-    border-radius: 10px;
-}
-
-.form-movimento {
-    background: none;
-    box-shadow: none;
-    padding: 0;
-    margin: 0;
-    width: auto;
-}
-
-.form-movimento input,
-.form-movimento select {
-    width: 90px;
-    padding: 8px;
-    margin: 5px;
-}
-
-.form-movimento button {
-    width: auto;
-    padding: 8px 12px;
-}
-
-/* ---- mensagens ---- */
-.msg {
-    width: 300px;
-    margin: 10px auto;
-    padding: 10px;
-    border-radius: 5px;
-    text-align: center;
+    padding: 12px 16px;
+    background: var(--chassi);
+    border-bottom: 1px solid var(--linha);
     font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    color: var(--apagado);
 }
 
-.msg.erro {
-    background-color: #fdecea;
-    color: #b3261e;
-    border: 1px solid #f5c2be;
+td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--linha);
+    vertical-align: middle;
 }
 
-.msg.ok {
-    background-color: #e8f5e9;
-    color: #1b5e20;
-    border: 1px solid #b7dfb9;
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr:hover { background: rgba(47, 128, 255, 0.06); }
+
+tfoot td {
+    background: var(--chassi);
+    border-top: 1px solid var(--linha);
+    border-bottom: 0;
+    font-weight: 700;
 }
 
-/* ---- botão excluir ---- */
-.btn-excluir {
-    background-color: #d93025;
+.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
 }
 
-.btn-excluir:hover {
-    background-color: #a52714;
+.qtd { margin-left: 6px; }
+
+.mov {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.mov select { width: 104px; padding: 6px 8px; }
+.mov input[type="number"] { width: 84px; padding: 6px 8px; }
+
+/* ---------- selos ---------- */
+.selo {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.selo-ok     { color: var(--ok);     background: rgba(62, 207, 142, 0.13); }
+.selo-alerta { color: var(--alerta); background: rgba(245, 181, 68, 0.14); }
+.selo-erro   { color: var(--erro);   background: rgba(255, 107, 94, 0.14); }
+
+/* ---------- login ---------- */
+.login {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px 16px;
+}
+
+.login-caixa {
+    width: 100%;
+    max-width: 380px;
+}
+
+/* o logo tem "ERP" em azul-marinho, então ele fica numa placa clara */
+.placa {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    padding: 14px 20px;
+    background: #eef1f6;
+    border-radius: 14px;
+    box-shadow: 0 0 44px rgba(47, 128, 255, 0.28);
+}
+
+.placa img {
+    display: block;
+    width: auto;
+    height: 64px;
+    max-width: 100%;
+}
+
+.titulo-login {
+    margin-bottom: 20px;
+    font-size: 24px;
+}
+
+.login label:not(:first-of-type) { margin-top: 14px; }
+
+/* ---------- celular ---------- */
+@media (max-width: 860px) {
+    .topbar-in {
+        flex-wrap: wrap;
+        gap: 4px 12px;
+        padding-top: 10px;
+        padding-bottom: 6px;
+    }
+
+    .marca { order: 1; }
+    .usuario { order: 2; margin-left: auto; }
+    .nav { order: 3; flex-basis: 100%; padding-bottom: 4px; }
+
+    .form-grade { grid-template-columns: 1fr 1fr; }
+    .form-grade > div:nth-child(2) { grid-column: 1 / -1; }
+    .form-grade button { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+    .nav a { padding: 8px 9px; font-size: 14px; }
+
+    /* tabelas viram cartões: cada linha empilha seus campos com o nome ao lado */
+    table,
+    .tabela-produtos { min-width: 0; }
+
+    table, thead, tbody, tfoot, tr, td { display: block; }
+    thead { display: none; }
+
+    tr {
+        padding: 10px 16px;
+        border-bottom: 1px solid var(--linha);
+    }
+
+    tbody tr:last-child { border-bottom: 0; }
+
+    td {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 5px 0;
+        border: 0;
+        text-align: right;
+    }
+
+    td::before {
+        content: attr(data-label);
+        flex: none;
+        font-size: 14px;
+        font-weight: 400;
+        text-align: left;
+        color: var(--apagado);
+    }
+
+    td:not([data-label])::before { content: none; }
+    td:not([data-label]) { justify-content: flex-end; }
+
+    td.cel-mov {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        text-align: left;
+    }
+
+    .mov { width: 100%; }
+    .mov select,
+    .mov input[type="number"] { flex: 1 1 0; width: auto; min-width: 0; }
+    .mov button { flex: none; }
+
+    tfoot td.total-rotulo { justify-content: flex-start; font-size: 16px; }
+    tfoot td.total-rotulo::before { content: none; }
+
+    .resumo dl,
+    .resumo-2 dl { grid-template-columns: 1fr; }
+
+    .resumo dl > div {
+        border-left: 0;
+        border-top: 1px solid var(--linha);
+    }
+
+    .resumo dl > div:first-child { border-top: 0; }
+
+    .papel { display: none; }
+    .filtros > div { flex: 1 1 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
 }

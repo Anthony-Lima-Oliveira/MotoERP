@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block titulo %}MotoERP{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+{% if session.get('user') %}
+<header class="topbar">
+    <div class="topbar-in">
+        <a class="marca" href="/home" aria-label="MotoERP, início"><b>Moto</b>ERP</a>
+
+        <nav class="nav" aria-label="Principal">
+            <a href="/home" {% if request.path == '/home' %}aria-current="page"{% endif %}>Início</a>
+            <a href="/produtos" {% if request.path == '/produtos' %}aria-current="page"{% endif %}>Estoque</a>
+            <a href="/historico" {% if request.path == '/historico' %}aria-current="page"{% endif %}>Movimentações</a>
+            <a href="/relatorio_estoque" {% if request.path == '/relatorio_estoque' %}aria-current="page"{% endif %}>Relatório</a>
+        </nav>
+
+        <div class="usuario">
+            <span><strong>{{ session['user'] }}</strong>
+                <span class="papel">{{ 'Administrador' if session.get('tipo') == 'admin' else 'Operador' }}</span>
+            </span>
+            <a class="btn btn-fantasma btn-pequeno" href="/logout">Sair</a>
+        </div>
+    </div>
+</header>
+{% endif %}
+
+{% block corpo %}
+<main class="pagina">
+    {% with mensagens = get_flashed_messages(with_categories=true) %}
+        {% for categoria, mensagem in mensagens %}
+        <p class="aviso aviso-{{ categoria }}" role="{{ 'alert' if categoria == 'erro' else 'status' }}">{{ mensagem }}</p>
+        {% endfor %}
+    {% endwith %}
+
+    {% block conteudo %}{% endblock %}
+</main>
+{% endblock %}
+
+</body>
+</html>

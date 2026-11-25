@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block titulo %}Movimentações | MotoERP{% endblock %}
+
+{% block conteudo %}
+<div class="cabecalho">
+    <div>
+        <h1>Movimentações</h1>
+        <p class="sub">Toda entrada e saída de estoque, da mais recente para a mais antiga.</p>
+    </div>
+</div>
+
+<form method="GET" action="/historico" class="filtros">
+    <div>
+        <label for="f-produto">Produto</label>
+        <select id="f-produto" name="produto">
+            <option value="">Todos os produtos</option>
+            {% for p in lista_produtos %}
+            <option value="{{ p[0] }}" {% if p[0]|string == produto_filtro %}selected{% endif %}>{{ p[1] }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label for="f-tipo">Tipo</label>
+        <select id="f-tipo" name="tipo">
+            <option value="">Entradas e saídas</option>
+            <option value="entrada" {% if tipo_filtro == 'entrada' %}selected{% endif %}>Só entradas</option>
+            <option value="saida" {% if tipo_filtro == 'saida' %}selected{% endif %}>Só saídas</option>
+        </select>
+    </div>
+    <button>Filtrar</button>
+    {% if produto_filtro or tipo_filtro %}
+    <a class="btn btn-fantasma" href="/historico">Limpar filtros</a>
+    {% endif %}
+</form>
+
+{% if movimentacoes %}
+<div class="tabela-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Produto</th>
+                <th>Tipo</th>
+                <th class="num">Quantidade</th>
+                <th>Feito por</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in movimentacoes %}
+            <tr>
+                <td data-label="Data">{{ m[0]|data_br }}</td>
+                <td data-label="Produto">{{ m[2] or ('Produto excluído (ID ' ~ m[1] ~ ')') }}</td>
+                <td data-label="Tipo">
+                    {% if m[3] == 'entrada' %}<span class="selo selo-ok">Entrada</span>
+                    {% else %}<span class="selo selo-erro">Saída</span>{% endif %}
+                </td>
+                <td data-label="Quantidade" class="num">{{ '+' if m[3] == 'entrada' else '−' }}{{ m[4] }}</td>
+                <td data-label="Feito por">{{ m[5] or '—' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if movimentacoes|length >= limite %}
+<p class="nota">Mostrando as {{ limite }} movimentações mais recentes.</p>
+{% endif %}
+
+{% else %}
+<div class="painel vazio">
+    {% if produto_filtro or tipo_filtro %}
+    Nenhuma movimentação com esses filtros. Tente limpar os filtros.
+    {% else %}
+    Nenhuma movimentação ainda. Dê uma entrada ou saída na tela de Estoque e ela aparece aqui.
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

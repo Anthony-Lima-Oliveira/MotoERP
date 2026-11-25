@@ -1,74 +1,98 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Produtos</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block titulo %}Estoque | MotoERP{% endblock %}
 
-<h2>Cadastro de Produtos</h2>
-<a href="/home">⬅ Voltar</a>
+{% block conteudo %}
+<div class="cabecalho">
+    <div>
+        <h1>Estoque</h1>
+        <p class="sub">{{ produtos|length }} {{ 'produto cadastrado' if produtos|length == 1 else 'produtos cadastrados' }}</p>
+    </div>
+</div>
 
-{% with mensagens = get_flashed_messages(with_categories=true) %}
-    {% for categoria, mensagem in mensagens %}
-    <p class="msg {{ categoria }}">{{ mensagem }}</p>
-    {% endfor %}
-{% endwith %}
+<section class="painel bloco">
+    <h2>Novo produto</h2>
+    <form method="POST" action="/add_produto" class="form-grade">
+        <div>
+            <label for="p-id">ID</label>
+            <input id="p-id" name="id" required>
+        </div>
+        <div>
+            <label for="p-nome">Nome</label>
+            <input id="p-nome" name="nome" required>
+        </div>
+        <div>
+            <label for="p-preco">Preço (R$)</label>
+            <input id="p-preco" name="preco" type="number" step="0.01" min="0" required>
+        </div>
+        <div>
+            <label for="p-qtd">Quantidade</label>
+            <input id="p-qtd" name="quantidade" type="number" min="0" required>
+        </div>
+        <button>Adicionar produto</button>
+    </form>
+</section>
 
-<form method="POST" action="/add_produto">
-<input name="id" placeholder="ID" required>
-<input name="nome" placeholder="Nome" required>
-<input name="preco" placeholder="Preço" type="number" step="0.01" min="0" required>
-<input name="quantidade" placeholder="Quantidade" type="number" min="0" required>
-    <button>Adicionar</button>
-</form>
+{% if produtos %}
+<div class="tabela-wrap">
+    <table class="tabela-produtos">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Produto</th>
+                <th class="num">Preço</th>
+                <th class="num">Quantidade</th>
+                <th>Movimentar</th>
+                {% if tipo == 'admin' %}
+                <th><span class="sr-only">Excluir</span></th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in produtos %}
+            <tr>
+                <td data-label="ID">{{ p[0] }}</td>
+                <td data-label="Produto">{{ p[1] }}</td>
+                <td data-label="Preço" class="num">{{ p[2]|real }}</td>
+                <td data-label="Quantidade" class="num">
+                    {% if p[3] <= 0 %}<span class="selo selo-erro">Sem estoque</span>
+                    {% elif p[3] <= limite %}<span class="selo selo-alerta">Estoque baixo</span>{% endif %}
+                    <strong class="qtd">{{ p[3] }}</strong>
+                </td>
 
-<table>
-    <tr>
-    <th>ID</th>
-    <th>Nome</th>
-    <th>Preço</th>
-    <th>Qtd</th>
-    <th>Movimentação</th>
-    {% if tipo == 'admin' %}
-    <th>Ação</th>
-    {% endif %}
-    </tr>
+                <td data-label="Movimentar" class="cel-mov">
+                    <form method="POST" action="/movimentar_produto" class="mov">
+                        <input type="hidden" name="produto_id" value="{{ p[0] }}">
 
-    {% for p in produtos %}
-    <tr>
-    <td>{{ p[0] }}</td>
-    <td>{{ p[1] }}</td>
-    <td>R$ {{ "%.2f"|format(p[2]) }}</td>
-    <td>{{ p[3] }}</td>
+                        <select name="tipo" aria-label="Tipo de movimentação de {{ p[1] }}">
+                            <option value="entrada">Entrada</option>
+                            <option value="saida">Saída</option>
+                        </select>
 
-    <td>
-        <form method="POST" action="/movimentar_produto" class="form-movimento">
-            <input type="hidden" name="produto_id" value="{{ p[0] }}">
+                        <input type="number" name="quantidade" placeholder="Qtd" min="1"
+                               aria-label="Quantidade de {{ p[1] }}" required>
 
-            <select name="tipo">
-                <option value="entrada">Entrada</option>
-                <option value="saida">Saída</option>
-            </select>
+                        <button class="btn-pequeno">Confirmar</button>
+                    </form>
+                </td>
 
-            <input type="number" name="quantidade" placeholder="Qtd" min="1" required>
-
-            <button>Confirmar</button>
-        </form>
-    </td>
-
-    {% if tipo == 'admin' %}
-    <td>
-        <form method="POST" action="/delete_produto/{{ p[0] }}" class="form-movimento"
-              onsubmit="return confirm('Excluir o produto {{ p[1] }}?');">
-            <button class="btn-excluir">Excluir</button>
-        </form>
-    </td>
-    {% endif %}
-</tr>
-    {% endfor %}
-</table>
-
-</body>
-</html>
+                {% if tipo == 'admin' %}
+                <td>
+                    <form method="POST" action="/delete_produto/{{ p[0] }}"
+                          data-nome="{{ p[1] }}"
+                          onsubmit="return confirm('Excluir o produto ' + this.dataset.nome + '?');">
+                        <button class="btn-perigo btn-pequeno">Excluir</button>
+                    </form>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="painel vazio">
+    Nenhum produto cadastrado ainda. Preencha o formulário acima para adicionar o primeiro.
+</div>
+{% endif %}
+{% endblock %}

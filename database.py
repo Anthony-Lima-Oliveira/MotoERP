@@ -22,9 +22,16 @@ def criar_tabelas():
     tipo TEXT NOT NULL,
     quantidade INTEGER NOT NULL,
     data TEXT NOT NULL,
+    usuario TEXT,
     FOREIGN KEY (produto_id) REFERENCES produtos(id)
 )
 """)
+
+    # Bancos criados antes do histórico não têm a coluna "usuario".
+    # Esta parte adiciona a coluna sem apagar nada do que já existe.
+    colunas = [c[1] for c in cursor.execute("PRAGMA table_info(movimentacoes)")]
+    if "usuario" not in colunas:
+        cursor.execute("ALTER TABLE movimentacoes ADD COLUMN usuario TEXT")
 
     conn.commit()
     conn.close()

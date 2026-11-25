@@ -1,19 +1,85 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Home</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block titulo %}Início | MotoERP{% endblock %}
 
-<div class="container-home">
-    <h1>Bem-vindo {{ user }}, ao estoque da sua loja!</h1>
-
-<a href="/produtos" class="menu-btn">📦 Estoque</a>
-<a href="/relatorio_estoque" class="menu-btn">📊 Relatório</a>
-<a href="/logout" class="menu-btn">🚪 Sair</a>
+{% block conteudo %}
+<div class="cabecalho">
+    <div>
+        <h1>Olá, {{ session['user'] }}</h1>
+        <p class="sub">Esta é a situação do estoque da sua loja agora.</p>
+    </div>
 </div>
 
-</body>
-</html>
+<section class="painel resumo" aria-label="Resumo do estoque">
+    <dl>
+        <div>
+            <dt>Itens em estoque</dt>
+            <dd>{{ total_itens }}</dd>
+            <dd class="detalhe">em {{ qtd_produtos }} produtos</dd>
+        </div>
+        <div>
+            <dt>Valor em estoque</dt>
+            <dd>{{ valor_total|real }}</dd>
+        </div>
+        <div>
+            <dt>Estoque baixo</dt>
+            <dd class="{{ 'alerta' if qtd_baixo else '' }}">{{ qtd_baixo }}</dd>
+            <dd class="detalhe">{{ 'produtos precisam de reposição' if qtd_baixo != 1 else 'produto precisa de reposição' }}</dd>
+        </div>
+    </dl>
+</section>
+
+<nav class="atalhos" aria-label="Atalhos">
+    <a class="atalho" href="/produtos">
+        <span class="icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></span>
+        <span><strong>Estoque</strong><small>Cadastrar, dar entrada e saída</small></span>
+    </a>
+    <a class="atalho" href="/historico">
+        <span class="icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h15l-3-3"/><path d="M20 16H5l3 3"/></svg></span>
+        <span><strong>Movimentações</strong><small>Tudo que entrou e saiu</small></span>
+    </a>
+    <a class="atalho" href="/relatorio_estoque">
+        <span class="icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16v-5"/><path d="M12 16V8"/><path d="M16 16v-3"/></svg></span>
+        <span><strong>Relatório</strong><small>Valor de cada produto</small></span>
+    </a>
+</nav>
+
+<section>
+    <div class="titulo-secao">
+        <h2>Últimas movimentações</h2>
+        <a href="/historico">Ver todas</a>
+    </div>
+
+    {% if recentes %}
+    <div class="tabela-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th class="num">Quantidade</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in recentes %}
+                <tr>
+                    <td data-label="Data">{{ r[0]|data_br }}</td>
+                    <td data-label="Produto">{{ r[2] or ('Produto excluído (ID ' ~ r[1] ~ ')') }}</td>
+                    <td data-label="Tipo">
+                        {% if r[3] == 'entrada' %}<span class="selo selo-ok">Entrada</span>
+                        {% else %}<span class="selo selo-erro">Saída</span>{% endif %}
+                    </td>
+                    <td data-label="Quantidade" class="num">{{ '+' if r[3] == 'entrada' else '−' }}{{ r[4] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="painel vazio">
+        Nenhuma movimentação ainda. Dê uma entrada ou saída na tela de Estoque e ela aparece aqui.
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

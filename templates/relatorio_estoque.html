@@ -1,40 +1,63 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Relatório de Estoque</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block titulo %}Relatório | MotoERP{% endblock %}
 
-<h2>Relatório de Estoque</h2>
-
-<a href="/home" class="voltar">⬅ Voltar</a>
-
-<div class="container">
-    <h3>Total de itens em estoque: {{ total_itens }}</h3>
-    <h3>Valor total em estoque: R$ {{ "%.2f"|format(valor_total) }}</h3>
+{% block conteudo %}
+<div class="cabecalho">
+    <div>
+        <h1>Relatório de estoque</h1>
+        <p class="sub">Quanto você tem parado em cada produto.</p>
+    </div>
 </div>
 
-<table>
-    <tr>
-        <th>ID</th>
-        <th>Produto</th>
-        <th>Preço</th>
-        <th>Quantidade</th>
-        <th>Valor em Estoque</th>
-    </tr>
+<section class="painel resumo resumo-2" aria-label="Totais">
+    <dl>
+        <div>
+            <dt>Total de itens em estoque</dt>
+            <dd>{{ total_itens }}</dd>
+        </div>
+        <div>
+            <dt>Valor total em estoque</dt>
+            <dd>{{ valor_total|real }}</dd>
+        </div>
+    </dl>
+</section>
 
-    {% for p in produtos %}
-    <tr>
-        <td>{{ p[0] }}</td>
-        <td>{{ p[1] }}</td>
-        <td>R$ {{ "%.2f"|format(p[2]) }}</td>
-        <td>{{ p[3] }}</td>
-        <td>R$ {{ "%.2f"|format(p[2] * p[3]) }}</td>
-    </tr>
-    {% endfor %}
-</table>
-
-</body>
-</html>
+{% if produtos %}
+<div class="tabela-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Produto</th>
+                <th class="num">Preço</th>
+                <th class="num">Quantidade</th>
+                <th class="num">Valor em estoque</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in produtos %}
+            <tr>
+                <td data-label="ID">{{ p[0] }}</td>
+                <td data-label="Produto">{{ p[1] }}</td>
+                <td data-label="Preço" class="num">{{ p[2]|real }}</td>
+                <td data-label="Quantidade" class="num">{{ p[3] }}</td>
+                <td data-label="Valor em estoque" class="num">{{ (p[2] * p[3])|real }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3" class="total-rotulo">Total</td>
+                <td data-label="Quantidade" class="num">{{ total_itens }}</td>
+                <td data-label="Valor em estoque" class="num">{{ valor_total|real }}</td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% else %}
+<div class="painel vazio">
+    Nenhum produto cadastrado ainda. Cadastre o primeiro na tela de Estoque.
+</div>
+{% endif %}
+{% endblock %}

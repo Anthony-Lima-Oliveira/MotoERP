@@ -1,23 +1,29 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>MotoERP</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+{% extends "base.html" %}
 
-<body>
+{% block titulo %}Entrar | MotoERP{% endblock %}
 
-<img src="{{ url_for('static', filename='logo.png') }}" alt="MotoERP Logo" class="logo">
+{% block corpo %}
+<main class="login">
+    <div class="login-caixa">
+        <div class="placa">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="MotoERP">
+        </div>
 
-<form method="POST">
-    <input name="usuario" placeholder="Usuário" required>
-    <input name="senha" type="password" placeholder="Senha" required>
-    <button>Entrar</button>
-</form>
+        <form method="POST" class="painel">
+            <h1 class="titulo-login">Entrar no estoque</h1>
 
-{% if erro %}
-<p class="msg erro">{{ erro }}</p>
-{% endif %}
+            {% if erro %}
+            <p class="aviso aviso-erro" role="alert">{{ erro }}</p>
+            {% endif %}
 
-</body>
-</html>
+            <label for="usuario">Usuário</label>
+            <input id="usuario" name="usuario" autocomplete="username" autofocus required>
+
+            <label for="senha">Senha</label>
+            <input id="senha" name="senha" type="password" autocomplete="current-password" required>
+
+            <button class="btn-cheio">Entrar</button>
+        </form>
+    </div>
+</main>
+{% endblock %}

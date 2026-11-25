@@ -9,11 +9,38 @@ app.secret_key = "erp123"
 
 criar_tabelas()
 
+# Produto com quantidade igual ou menor que isso aparece como "Estoque baixo".
+LIMITE_ESTOQUE_BAIXO = 5
+
+# Quantas movimentações a tela de histórico mostra no máximo.
+LIMITE_HISTORICO = 300
+
 # ---------------- USUÁRIOS ----------------
 usuarios = {
     "admin": {"senha": "123", "tipo": "admin"},
     "operador": {"senha": "123", "tipo": "operador"}
 }
+
+
+# ---------------- FORMATAÇÃO ----------------
+@app.template_filter("real")
+def real(valor):
+    """1234.5 -> R$ 1.234,50"""
+    try:
+        valor = float(valor)
+    except (TypeError, ValueError):
+        valor = 0.0
+    texto = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    return "R$ " + texto
+
+
+@app.template_filter("data_br")
+def data_br(valor):
+    """2026-06-11 19:08 -> 11/06/2026 19:08"""
+    try:
+        return datetime.strptime(valor, "%Y-%m-%d %H:%M").strftime("%d/%m/%Y %H:%M")
+    except (TypeError, ValueError):
+        return valor or ""
 
 
 # ---------------- PROTEÇÃO DAS ROTAS ----------------
@@ -62,7 +89,40 @@ def login():
 @app.route("/home")
 @login_required
 def home():
-    return render_template("home.html", user=session["user"], tipo=session["tipo"])
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT COUNT(*), COALESCE(SUM(quantidade), 0), COALESCE(SUM(preco * quantidade), 0)
+        FROM produtos
+    """)
+    qtd_produtos, total_itens, valor_total = cursor.fetchone()
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM produtos WHERE quantidade <= ?",
+        (LIMITE_ESTOQUE_BAIXO,)
+    )
+    qtd_baixo = cursor.fetchone()[0]
+
+    cursor.execute("""
+        SELECT m.data, m.produto_id, p.nome, m.tipo, m.quantidade
+        FROM movimentacoes m
+        LEFT JOIN produtos p ON p.id = m.produto_id
+        ORDER BY m.id DESC
+        LIMIT 5
+    """)
+    recentes = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "home.html",
+        qtd_produtos=qtd_produtos,
+        total_itens=total_itens,
+        valor_total=valor_total,
+        qtd_baixo=qtd_baixo,
+        recentes=recentes
+    )
 
 
 @app.route("/logout")
@@ -81,7 +141,12 @@ def produtos():
     dados = cursor.fetchall()
     conn.close()
 
-    return render_template("produtos.html", produtos=dados, tipo=session["tipo"])
+    return render_template(
+        "produtos.html",
+        produtos=dados,
+        tipo=session["tipo"],
+        limite=LIMITE_ESTOQUE_BAIXO
+    )
 
 
 @app.route("/add_produto", methods=["POST"])
@@ -190,15 +255,66 @@ def movimentar_produto():
     )
 
     cursor.execute("""
-        INSERT INTO movimentacoes (produto_id, tipo, quantidade, data)
-        VALUES (?, ?, ?, ?)
-    """, (produto_id, tipo, quantidade, data))
+        INSERT INTO movimentacoes (produto_id, tipo, quantidade, data, usuario)
+        VALUES (?, ?, ?, ?, ?)
+    """, (produto_id, tipo, quantidade, data, session["user"]))
 
     conn.commit()
     conn.close()
 
     flash("Movimentação registrada.", "ok")
     return redirect("/produtos")
+
+
+# ---------------- HISTÓRICO ----------------
+@app.route("/historico")
+@login_required
+def historico():
+    produto = request.args.get("produto", "")
+    tipo = request.args.get("tipo", "")
+    if tipo not in ("entrada", "saida"):
+        tipo = ""
+
+    sql = """
+        SELECT m.data, m.produto_id, p.nome, m.tipo, m.quantidade, m.usuario
+        FROM movimentacoes m
+        LEFT JOIN produtos p ON p.id = m.produto_id
+    """
+    filtros = []
+    params = []
+
+    if produto:
+        filtros.append("m.produto_id = ?")
+        params.append(produto)
+    if tipo:
+        filtros.append("m.tipo = ?")
+        params.append(tipo)
+
+    if filtros:
+        sql += " WHERE " + " AND ".join(filtros)
+
+    sql += " ORDER BY m.id DESC LIMIT ?"
+    params.append(LIMITE_HISTORICO)
+
+    conn = conectar()
+    cursor = conn.cursor()
+
+    cursor.execute(sql, params)
+    movimentacoes = cursor.fetchall()
+
+    cursor.execute("SELECT id, nome FROM produtos ORDER BY nome")
+    lista_produtos = cursor.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "historico.html",
+        movimentacoes=movimentacoes,
+        lista_produtos=lista_produtos,
+        produto_filtro=produto,
+        tipo_filtro=tipo,
+        limite=LIMITE_HISTORICO
+    )
 
 
 # ---------------- RELATÓRIO ----------------
