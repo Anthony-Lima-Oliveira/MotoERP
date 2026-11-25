@@ -3,16 +3,27 @@ import sqlite3
 def conectar():
     return sqlite3.connect("erp.db")
 
+
+def adicionar_coluna(cursor, tabela, coluna, definicao):
+    """Adiciona uma coluna só se ela ainda não existir (não mexe nos dados)."""
+    colunas = [c[1] for c in cursor.execute(f"PRAGMA table_info({tabela})")]
+    if coluna not in colunas:
+        cursor.execute(f"ALTER TABLE {tabela} ADD COLUMN {coluna} {definicao}")
+
+
 def criar_tabelas():
     conn = conectar()
     cursor = conn.cursor()
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS produtos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT PRIMARY KEY,
     nome TEXT NOT NULL,
     preco REAL NOT NULL,
-    quantidade INTEGER NOT NULL
+    quantidade INTEGER NOT NULL,
+    custo REAL,
+    estoque_minimo INTEGER NOT NULL DEFAULT 5,
+    categoria TEXT
     )
 """)
     cursor.execute("""
@@ -27,11 +38,13 @@ def criar_tabelas():
 )
 """)
 
-    # Bancos criados antes do histórico não têm a coluna "usuario".
-    # Esta parte adiciona a coluna sem apagar nada do que já existe.
-    colunas = [c[1] for c in cursor.execute("PRAGMA table_info(movimentacoes)")]
-    if "usuario" not in colunas:
-        cursor.execute("ALTER TABLE movimentacoes ADD COLUMN usuario TEXT")
+    # Migrações: bancos criados em versões antigas ganham as colunas novas.
+    # "preco" continua sendo o preço de VENDA. "custo" fica vazio (NULL)
+    # nos produtos antigos até alguém informar.
+    adicionar_coluna(cursor, "produtos", "custo", "REAL")
+    adicionar_coluna(cursor, "produtos", "estoque_minimo", "INTEGER NOT NULL DEFAULT 5")
+    adicionar_coluna(cursor, "produtos", "categoria", "TEXT")
+    adicionar_coluna(cursor, "movimentacoes", "usuario", "TEXT")
 
     conn.commit()
     conn.close()

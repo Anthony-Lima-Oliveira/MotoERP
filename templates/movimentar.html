@@ -55,7 +55,7 @@
                         <span>{{ p[1] }} <small>ID {{ p[0] }}</small></span>
                         <span class="prod-estoque">
                             {% if p[2] <= 0 %}<span class="selo selo-erro">Sem estoque</span>
-                            {% elif p[2] <= limite %}<span class="selo selo-alerta">Estoque baixo</span>{% endif %}
+                            {% elif p[2] <= p[3] %}<span class="selo selo-alerta">Estoque baixo</span>{% endif %}
                             <strong>{{ p[2] }}</strong> un.
                         </span>
                     </label>

@@ -3,48 +3,113 @@
 {% block titulo %}Estoque | MotoERP{% endblock %}
 
 {% block conteudo %}
+
+{# cabeçalho de coluna que ordena a tabela ao clicar #}
+{% macro th_ordem(coluna, titulo, classe='') %}
+    {% set ativa = (ordem == coluna) %}
+    {% set proxima = 'desc' if (ativa and direcao == 'asc') else 'asc' %}
+    <th class="{{ classe }}" aria-sort="{{ ('ascending' if direcao == 'asc' else 'descending') if ativa else 'none' }}">
+        <a class="ordenar" href="{{ url_for('produtos', q=busca or None, categoria=categoria or None, baixo=('1' if so_baixo else None), ordem=coluna, dir=proxima) }}">{{ titulo }}{% if ativa %} <span aria-hidden="true">{{ '▲' if direcao == 'asc' else '▼' }}</span>{% endif %}</a>
+    </th>
+{% endmacro %}
+
 <div class="cabecalho">
     <div>
         <h1>Estoque</h1>
-        <p class="sub">{{ produtos|length }} {{ 'produto cadastrado' if produtos|length == 1 else 'produtos cadastrados' }}</p>
+        <p class="sub">
+            {% if busca or categoria or so_baixo %}
+                {{ produtos|length }} de {{ total }} {{ 'produto' if total == 1 else 'produtos' }}
+            {% else %}
+                {{ total }} {{ 'produto cadastrado' if total == 1 else 'produtos cadastrados' }}
+            {% endif %}
+        </p>
     </div>
     <a class="btn" href="/movimentar">Movimentar estoque</a>
 </div>
 
 <section class="painel bloco">
     <h2>Novo produto</h2>
-    <form method="POST" action="/add_produto" class="form-grade">
+    <form method="POST" action="/add_produto" class="form-produto" data-calc-margem>
         <div>
             <label for="p-id">ID</label>
             <input id="p-id" name="id" required>
         </div>
-        <div>
+        <div class="span-2">
             <label for="p-nome">Nome</label>
             <input id="p-nome" name="nome" required>
         </div>
         <div>
-            <label for="p-preco">Preço (R$)</label>
+            <label for="p-categoria">Categoria <span class="opcional">(opcional)</span></label>
+            <input id="p-categoria" name="categoria" list="lista-categorias" maxlength="40" autocomplete="off">
+            <datalist id="lista-categorias">
+                {% for c in categorias %}<option value="{{ c }}">{% endfor %}
+            </datalist>
+        </div>
+
+        <div>
+            <label for="p-custo">Custo (R$)</label>
+            <input id="p-custo" name="custo" type="number" step="0.01" min="0" required>
+        </div>
+        <div>
+            <label for="p-preco">Preço de venda (R$)</label>
             <input id="p-preco" name="preco" type="number" step="0.01" min="0" required>
         </div>
         <div>
             <label for="p-qtd">Quantidade</label>
             <input id="p-qtd" name="quantidade" type="number" min="0" required>
         </div>
-        <button>Adicionar produto</button>
+        <div>
+            <label for="p-min">Estoque mínimo</label>
+            <input id="p-min" name="estoque_minimo" type="number" min="0" value="{{ minimo_padrao }}" required>
+        </div>
+
+        <p class="dica span-todos" data-margem-saida aria-live="polite"></p>
+        <button class="span-todos botao-form">Adicionar produto</button>
     </form>
 </section>
+
+{% if total %}
+<form method="GET" action="/produtos" class="filtros">
+    <input type="hidden" name="ordem" value="{{ ordem }}">
+    <input type="hidden" name="dir" value="{{ direcao }}">
+    <div class="filtro-busca">
+        <label for="f-busca">Buscar</label>
+        <input id="f-busca" name="q" type="search" value="{{ busca }}" placeholder="Nome, ID ou categoria" autocomplete="off">
+    </div>
+    <div>
+        <label for="f-categoria">Categoria</label>
+        <select id="f-categoria" name="categoria">
+            <option value="">Todas as categorias</option>
+            {% for c in categorias %}
+            <option value="{{ c }}" {% if categoria == c %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+            <option value="__sem" {% if categoria == '__sem' %}selected{% endif %}>Sem categoria</option>
+        </select>
+    </div>
+    <label class="marcar">
+        <input type="checkbox" name="baixo" value="1" {% if so_baixo %}checked{% endif %}>
+        Só estoque baixo
+    </label>
+    <button>Filtrar</button>
+    {% if busca or categoria or so_baixo %}
+    <a class="btn btn-fantasma" href="/produtos">Limpar filtros</a>
+    {% endif %}
+</form>
+{% endif %}
 
 {% if produtos %}
 <div class="tabela-wrap">
     <table class="tabela-produtos">
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Produto</th>
-                <th class="num">Preço</th>
-                <th class="num">Quantidade</th>
+                {{ th_ordem('id', 'ID') }}
+                {{ th_ordem('nome', 'Produto') }}
+                <th class="num">Custo</th>
+                {{ th_ordem('preco', 'Preço de venda', 'num') }}
+                <th class="num">Margem</th>
+                {{ th_ordem('quantidade', 'Quantidade', 'num') }}
                 {% if tipo == 'admin' %}
-                <th><span class="sr-only">Excluir</span></th>
+                <th><span class="sr-only">Ações</span></th>
                 {% endif %}
             </tr>
         </thead>
@@ -52,21 +117,28 @@
             {% for p in produtos %}
             <tr>
                 <td data-label="ID">{{ p[0] }}</td>
-                <td data-label="Produto">{{ p[1] }}</td>
-                <td data-label="Preço" class="num">{{ p[2]|real }}</td>
+                <td data-label="Produto">
+                    <span class="prod-nome">{{ p[1] }}{% if p[6] %}<small class="categoria">{{ p[6] }}</small>{% endif %}</span>
+                </td>
+                <td data-label="Custo" class="num">{% if p[4] is not none %}{{ p[4]|real }}{% else %}<span class="sem-dado" title="Custo não informado">—</span>{% endif %}</td>
+                <td data-label="Preço de venda" class="num">{{ p[2]|real }}</td>
+                <td data-label="Margem" class="num {% if p[4] is not none and p[2] < p[4] %}neg{% endif %}">{{ p[2]|margem(p[4]) }}</td>
                 <td data-label="Quantidade" class="num">
                     {% if p[3] <= 0 %}<span class="selo selo-erro">Sem estoque</span>
-                    {% elif p[3] <= limite %}<span class="selo selo-alerta">Estoque baixo</span>{% endif %}
+                    {% elif p[3] <= p[5] %}<span class="selo selo-alerta" title="Mínimo definido: {{ p[5] }}">Estoque baixo</span>{% endif %}
                     <strong class="qtd">{{ p[3] }}</strong>
                 </td>
 
                 {% if tipo == 'admin' %}
                 <td>
-                    <form method="POST" action="/delete_produto/{{ p[0] }}"
-                          data-nome="{{ p[1] }}"
-                          onsubmit="return confirm('Excluir o produto ' + this.dataset.nome + '?');">
-                        <button class="btn-perigo btn-pequeno">Excluir</button>
-                    </form>
+                    <div class="acoes">
+                        <a class="btn btn-fantasma btn-pequeno" href="{{ url_for('editar_produto', id=p[0]) }}">Editar</a>
+                        <form method="POST" action="/delete_produto/{{ p[0] }}"
+                              data-nome="{{ p[1] }}"
+                              onsubmit="return confirm('Excluir o produto ' + this.dataset.nome + '?');">
+                            <button class="btn-perigo btn-pequeno">Excluir</button>
+                        </form>
+                    </div>
                 </td>
                 {% endif %}
             </tr>
@@ -74,9 +146,15 @@
         </tbody>
     </table>
 </div>
+{% elif total %}
+<div class="painel vazio">
+    Nenhum produto encontrado com esses filtros. <a href="/produtos">Limpar filtros</a>
+</div>
 {% else %}
 <div class="painel vazio">
     Nenhum produto cadastrado ainda. Preencha o formulário acima para adicionar o primeiro.
 </div>
 {% endif %}
+
+<script src="{{ url_for('static', filename='margem.js') }}"></script>
 {% endblock %}

@@ -6,22 +6,38 @@
 <div class="cabecalho">
     <div>
         <h1>Relatório de estoque</h1>
-        <p class="sub">Quanto você tem parado em cada produto.</p>
+        <p class="sub">Quanto você tem parado em cada produto e quanto isso pode render.</p>
     </div>
 </div>
 
-<section class="painel resumo resumo-2" aria-label="Totais">
+<section class="painel resumo resumo-4" aria-label="Totais">
     <dl>
         <div>
-            <dt>Total de itens em estoque</dt>
+            <dt>Itens em estoque</dt>
             <dd>{{ total_itens }}</dd>
         </div>
         <div>
-            <dt>Valor total em estoque</dt>
-            <dd>{{ valor_total|real }}</dd>
+            <dt>Valor de custo</dt>
+            <dd>{{ valor_custo|real }}</dd>
+        </div>
+        <div>
+            <dt>Valor de venda</dt>
+            <dd>{{ valor_venda|real }}</dd>
+        </div>
+        <div>
+            <dt>Lucro potencial</dt>
+            <dd class="{{ 'erro-texto' if lucro_potencial < 0 else '' }}">{{ lucro_potencial|real }}</dd>
         </div>
     </dl>
 </section>
+
+{% if sem_custo %}
+<p class="aviso aviso-alerta" role="status">
+    {{ sem_custo }} {{ 'produto está' if sem_custo == 1 else 'produtos estão' }} sem custo informado e
+    {{ 'ficou' if sem_custo == 1 else 'ficaram' }} fora do valor de custo e do lucro.
+    {% if session.get('tipo') == 'admin' %}Informe o custo em <a href="/produtos">Estoque</a>, no botão Editar.{% endif %}
+</p>
+{% endif %}
 
 {% if produtos %}
 <div class="tabela-wrap">
@@ -30,7 +46,9 @@
             <tr>
                 <th>ID</th>
                 <th>Produto</th>
-                <th class="num">Preço</th>
+                <th class="num">Custo</th>
+                <th class="num">Preço de venda</th>
+                <th class="num">Margem</th>
                 <th class="num">Quantidade</th>
                 <th class="num">Valor em estoque</th>
             </tr>
@@ -40,7 +58,9 @@
             <tr>
                 <td data-label="ID">{{ p[0] }}</td>
                 <td data-label="Produto">{{ p[1] }}</td>
-                <td data-label="Preço" class="num">{{ p[2]|real }}</td>
+                <td data-label="Custo" class="num">{% if p[4] is not none %}{{ p[4]|real }}{% else %}<span class="sem-dado">—</span>{% endif %}</td>
+                <td data-label="Preço de venda" class="num">{{ p[2]|real }}</td>
+                <td data-label="Margem" class="num {% if p[4] is not none and p[2] < p[4] %}neg{% endif %}">{{ p[2]|margem(p[4]) }}</td>
                 <td data-label="Quantidade" class="num">{{ p[3] }}</td>
                 <td data-label="Valor em estoque" class="num">{{ (p[2] * p[3])|real }}</td>
             </tr>
@@ -48,9 +68,9 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="3" class="total-rotulo">Total</td>
+                <td colspan="5" class="total-rotulo">Total</td>
                 <td data-label="Quantidade" class="num">{{ total_itens }}</td>
-                <td data-label="Valor em estoque" class="num">{{ valor_total|real }}</td>
+                <td data-label="Valor em estoque" class="num">{{ valor_venda|real }}</td>
             </tr>
         </tfoot>
     </table>
