@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, flash
+from flask import Flask, render_template, request, redirect, session, flash, url_for
 from functools import wraps
 import sqlite3
 from database import criar_tabelas, conectar
@@ -205,65 +205,109 @@ def delete_produto(id):
     return redirect("/produtos")
 
 
-@app.route("/movimentar_produto", methods=["POST"])
+# ---------------- MOVIMENTAR ----------------
+def voltar_para_movimentar(produto_id="", tipo=""):
+    """Volta para a tela Movimentar mantendo o que a pessoa já tinha escolhido."""
+    return redirect(url_for("movimentar", produto=produto_id, tipo=tipo))
+
+
+@app.route("/movimentar", methods=["GET", "POST"])
 @login_required
-def movimentar_produto():
-    produto_id = request.form.get("produto_id", "")
-    tipo = request.form.get("tipo", "")
+def movimentar():
+    if request.method == "POST":
+        produto_id = request.form.get("produto_id", "")
+        tipo = request.form.get("tipo", "")
 
-    try:
-        quantidade = int(request.form.get("quantidade", ""))
-    except ValueError:
-        flash("Quantidade inválida.", "erro")
-        return redirect("/produtos")
+        if tipo not in ("entrada", "saida"):
+            flash("Escolha se foi uma entrada ou uma saída.", "erro")
+            return voltar_para_movimentar(produto_id)
 
-    if tipo not in ("entrada", "saida"):
-        flash("Tipo de movimentação inválido.", "erro")
-        return redirect("/produtos")
+        if not produto_id:
+            flash("Escolha o produto.", "erro")
+            return voltar_para_movimentar(tipo=tipo)
 
-    if quantidade <= 0:
-        flash("A quantidade precisa ser maior que zero.", "erro")
-        return redirect("/produtos")
+        try:
+            quantidade = int(request.form.get("quantidade", ""))
+        except ValueError:
+            flash("Quantidade inválida.", "erro")
+            return voltar_para_movimentar(produto_id, tipo)
 
-    data = datetime.now().strftime("%Y-%m-%d %H:%M")
+        if quantidade <= 0:
+            flash("A quantidade precisa ser maior que zero.", "erro")
+            return voltar_para_movimentar(produto_id, tipo)
+
+        conn = conectar()
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT nome, quantidade FROM produtos WHERE id=?", (produto_id,))
+        produto = cursor.fetchone()
+
+        if not produto:
+            conn.close()
+            flash("Produto não encontrado.", "erro")
+            return voltar_para_movimentar(tipo=tipo)
+
+        nome, estoque_atual = produto
+
+        if tipo == "entrada":
+            novo_estoque = estoque_atual + quantidade
+        else:
+            if quantidade > estoque_atual:
+                conn.close()
+                flash(f"Só há {estoque_atual} un. de {nome} em estoque.", "erro")
+                return voltar_para_movimentar(produto_id, tipo)
+            novo_estoque = estoque_atual - quantidade
+
+        data = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+        cursor.execute(
+            "UPDATE produtos SET quantidade=? WHERE id=?",
+            (novo_estoque, produto_id)
+        )
+
+        cursor.execute("""
+            INSERT INTO movimentacoes (produto_id, tipo, quantidade, data, usuario)
+            VALUES (?, ?, ?, ?, ?)
+        """, (produto_id, tipo, quantidade, data, session["user"]))
+
+        conn.commit()
+        conn.close()
+
+        palavra = "Entrada" if tipo == "entrada" else "Saída"
+        flash(f"{palavra} registrada: {quantidade} un. de {nome}. Estoque agora: {novo_estoque}.", "ok")
+        return redirect("/movimentar")
+
+    # ---- GET: mostra a tela ----
+    produto_sel = request.args.get("produto", "")
+    tipo_sel = request.args.get("tipo", "")
+    if tipo_sel not in ("entrada", "saida"):
+        tipo_sel = ""
 
     conn = conectar()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT quantidade FROM produtos WHERE id=?", (produto_id,))
-    produto = cursor.fetchone()
-
-    if not produto:
-        conn.close()
-        flash("Produto não encontrado.", "erro")
-        return redirect("/produtos")
-
-    estoque_atual = produto[0]
-
-    if tipo == "entrada":
-        novo_estoque = estoque_atual + quantidade
-    else:
-        if quantidade > estoque_atual:
-            conn.close()
-            flash("Quantidade de saída maior que o estoque atual.", "erro")
-            return redirect("/produtos")
-        novo_estoque = estoque_atual - quantidade
-
-    cursor.execute(
-        "UPDATE produtos SET quantidade=? WHERE id=?",
-        (novo_estoque, produto_id)
-    )
+    cursor.execute("SELECT id, nome, quantidade FROM produtos ORDER BY nome")
+    lista_produtos = cursor.fetchall()
 
     cursor.execute("""
-        INSERT INTO movimentacoes (produto_id, tipo, quantidade, data, usuario)
-        VALUES (?, ?, ?, ?, ?)
-    """, (produto_id, tipo, quantidade, data, session["user"]))
+        SELECT m.data, m.produto_id, p.nome, m.tipo, m.quantidade
+        FROM movimentacoes m
+        LEFT JOIN produtos p ON p.id = m.produto_id
+        ORDER BY m.id DESC
+        LIMIT 5
+    """)
+    recentes = cursor.fetchall()
 
-    conn.commit()
     conn.close()
 
-    flash("Movimentação registrada.", "ok")
-    return redirect("/produtos")
+    return render_template(
+        "movimentar.html",
+        lista_produtos=lista_produtos,
+        produto_sel=produto_sel,
+        tipo_sel=tipo_sel,
+        recentes=recentes,
+        limite=LIMITE_ESTOQUE_BAIXO
+    )
 
 
 # ---------------- HISTÓRICO ----------------

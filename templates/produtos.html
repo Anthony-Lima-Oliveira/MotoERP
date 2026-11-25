@@ -8,6 +8,7 @@
         <h1>Estoque</h1>
         <p class="sub">{{ produtos|length }} {{ 'produto cadastrado' if produtos|length == 1 else 'produtos cadastrados' }}</p>
     </div>
+    <a class="btn" href="/movimentar">Movimentar estoque</a>
 </div>
 
 <section class="painel bloco">
@@ -42,7 +43,6 @@
                 <th>Produto</th>
                 <th class="num">Preço</th>
                 <th class="num">Quantidade</th>
-                <th>Movimentar</th>
                 {% if tipo == 'admin' %}
                 <th><span class="sr-only">Excluir</span></th>
                 {% endif %}
@@ -58,22 +58,6 @@
                     {% if p[3] <= 0 %}<span class="selo selo-erro">Sem estoque</span>
                     {% elif p[3] <= limite %}<span class="selo selo-alerta">Estoque baixo</span>{% endif %}
                     <strong class="qtd">{{ p[3] }}</strong>
-                </td>
-
-                <td data-label="Movimentar" class="cel-mov">
-                    <form method="POST" action="/movimentar_produto" class="mov">
-                        <input type="hidden" name="produto_id" value="{{ p[0] }}">
-
-                        <select name="tipo" aria-label="Tipo de movimentação de {{ p[1] }}">
-                            <option value="entrada">Entrada</option>
-                            <option value="saida">Saída</option>
-                        </select>
-
-                        <input type="number" name="quantidade" placeholder="Qtd" min="1"
-                               aria-label="Quantidade de {{ p[1] }}" required>
-
-                        <button class="btn-pequeno">Confirmar</button>
-                    </form>
                 </td>
 
                 {% if tipo == 'admin' %}

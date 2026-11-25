@@ -17,7 +17,8 @@
         <nav class="nav" aria-label="Principal">
             <a href="/home" {% if request.path == '/home' %}aria-current="page"{% endif %}>Início</a>
             <a href="/produtos" {% if request.path == '/produtos' %}aria-current="page"{% endif %}>Estoque</a>
-            <a href="/historico" {% if request.path == '/historico' %}aria-current="page"{% endif %}>Movimentações</a>
+            <a href="/movimentar" {% if request.path == '/movimentar' %}aria-current="page"{% endif %}>Movimentar</a>
+            <a href="/historico" {% if request.path == '/historico' %}aria-current="page"{% endif %}>Histórico</a>
             <a href="/relatorio_estoque" {% if request.path == '/relatorio_estoque' %}aria-current="page"{% endif %}>Relatório</a>
         </nav>
 

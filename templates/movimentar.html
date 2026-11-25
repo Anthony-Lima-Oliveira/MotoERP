@@ -1,0 +1,216 @@
+{% extends "base.html" %}
+
+{% block titulo %}Movimentar | MotoERP{% endblock %}
+
+{% block conteudo %}
+<div class="cabecalho">
+    <div>
+        <h1>Movimentar</h1>
+        <p class="sub">Registre o que entrou ou saiu do estoque, em três passos.</p>
+    </div>
+</div>
+
+<div class="mov-layout">
+
+    <form method="POST" action="/movimentar" id="form-mov" class="painel passos">
+
+        <!-- Passo 1 -->
+        <fieldset class="passo-bloco">
+            <legend><span class="num-passo">1</span> Entrou ou saiu?</legend>
+            <div class="tipos">
+                <div>
+                    <input type="radio" name="tipo" id="tipo-entrada" value="entrada"
+                           {% if tipo_sel == 'entrada' %}checked{% endif %} required>
+                    <label for="tipo-entrada" class="tipo-card tipo-entrada">
+                        <span class="icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg></span>
+                        <span><strong>Entrada</strong><small>Chegou mercadoria no estoque</small></span>
+                    </label>
+                </div>
+                <div>
+                    <input type="radio" name="tipo" id="tipo-saida" value="saida"
+                           {% if tipo_sel == 'saida' %}checked{% endif %}>
+                    <label for="tipo-saida" class="tipo-card tipo-saida">
+                        <span class="icone"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="M7 8l5-5 5 5"/><path d="M5 21h14"/></svg></span>
+                        <span><strong>Saída</strong><small>Mercadoria saiu do estoque</small></span>
+                    </label>
+                </div>
+            </div>
+        </fieldset>
+
+        <!-- Passo 2 -->
+        <fieldset class="passo-bloco">
+            <legend><span class="num-passo">2</span> Qual produto?</legend>
+
+            {% if lista_produtos %}
+            <label for="m-busca" class="sr-only">Buscar produto</label>
+            <input id="m-busca" class="busca" type="search" placeholder="Buscar pelo nome ou pelo ID" autocomplete="off">
+
+            <ul class="lista-produtos">
+                {% for p in lista_produtos %}
+                <li class="item-produto" data-busca="{{ p[1] }} {{ p[0] }}">
+                    <input type="radio" name="produto_id" id="prod-{{ loop.index }}" value="{{ p[0] }}"
+                           data-estoque="{{ p[2] }}" data-nome="{{ p[1] }}"
+                           {% if p[0]|string == produto_sel %}checked{% endif %} required>
+                    <label for="prod-{{ loop.index }}">
+                        <span>{{ p[1] }} <small>ID {{ p[0] }}</small></span>
+                        <span class="prod-estoque">
+                            {% if p[2] <= 0 %}<span class="selo selo-erro">Sem estoque</span>
+                            {% elif p[2] <= limite %}<span class="selo selo-alerta">Estoque baixo</span>{% endif %}
+                            <strong>{{ p[2] }}</strong> un.
+                        </span>
+                    </label>
+                </li>
+                {% endfor %}
+            </ul>
+            <p id="sem-resultado" class="nota" hidden>Nenhum produto encontrado com esse nome ou ID.</p>
+            {% else %}
+            <div class="vazio">
+                Você ainda não tem produtos. <a href="/produtos">Cadastre o primeiro no Estoque</a>.
+            </div>
+            {% endif %}
+        </fieldset>
+
+        <!-- Passo 3 -->
+        <fieldset class="passo-bloco">
+            <legend><span class="num-passo">3</span> Quantas unidades?</legend>
+
+            <div class="stepper">
+                <button type="button" class="passo" data-passo="-1" aria-label="Diminuir quantidade">−</button>
+                <input id="m-qtd" name="quantidade" type="number" min="1" value="1" inputmode="numeric"
+                       aria-label="Quantidade de unidades" required>
+                <button type="button" class="passo" data-passo="1" aria-label="Aumentar quantidade">+</button>
+            </div>
+
+            <p id="resumo-mov" class="resumo-mov" aria-live="polite">
+                Escolha se entrou ou saiu e o produto para ver como o estoque vai ficar.
+            </p>
+        </fieldset>
+
+        <button id="btn-registrar" class="btn-grande">Registrar movimentação</button>
+    </form>
+
+    <aside>
+        <div class="titulo-secao">
+            <h2>Últimas movimentações</h2>
+            <a href="/historico">Ver histórico</a>
+        </div>
+
+        {% if recentes %}
+        <ul class="painel recentes">
+            {% for r in recentes %}
+            <li>
+                {% if r[3] == 'entrada' %}<span class="selo selo-ok">Entrada</span>
+                {% else %}<span class="selo selo-erro">Saída</span>{% endif %}
+                <span class="rec-nome">
+                    {{ r[2] or ('Produto excluído (ID ' ~ r[1] ~ ')') }}
+                    <small>{{ r[0]|data_br }}</small>
+                </span>
+                <strong class="num">{{ '+' if r[3] == 'entrada' else '−' }}{{ r[4] }}</strong>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="painel vazio">Nada registrado ainda. A primeira movimentação aparece aqui.</div>
+        {% endif %}
+    </aside>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('form-mov');
+    if (!form) return;
+
+    var tipos = form.querySelectorAll('input[name=tipo]');
+    var produtos = form.querySelectorAll('input[name=produto_id]');
+    var qtd = document.getElementById('m-qtd');
+    var resumo = document.getElementById('resumo-mov');
+    var botao = document.getElementById('btn-registrar');
+    var busca = document.getElementById('m-busca');
+    var vazio = document.getElementById('sem-resultado');
+
+    function marcado(lista) {
+        for (var i = 0; i < lista.length; i++) {
+            if (lista[i].checked) return lista[i];
+        }
+        return null;
+    }
+
+    function semAcento(texto) {
+        return texto.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    }
+
+    function atualizar() {
+        var tipo = marcado(tipos);
+        var produto = marcado(produtos);
+        var n = parseInt(qtd.value, 10);
+
+        var valido = false;
+        var classe = '';
+        var texto = 'Escolha se entrou ou saiu e o produto para ver como o estoque vai ficar.';
+
+        if (tipo && produto) {
+            var atual = parseInt(produto.dataset.estoque, 10);
+            var nome = produto.dataset.nome;
+
+            if (!n || n < 1) {
+                texto = nome + ' tem ' + atual + ' un. em estoque. Informe a quantidade.';
+            } else if (tipo.value === 'saida' && n > atual) {
+                texto = 'Só há ' + atual + ' un. de ' + nome + ' em estoque.';
+                classe = 'erro';
+            } else {
+                var depois = tipo.value === 'entrada' ? atual + n : atual - n;
+                texto = nome + ': de ' + atual + ' para ' + depois + ' un. em estoque.';
+                classe = 'ok';
+                valido = true;
+            }
+        } else if (tipo) {
+            texto = 'Agora escolha o produto.';
+        } else if (produto) {
+            texto = 'Agora escolha se foi uma entrada ou uma saída.';
+        }
+
+        resumo.textContent = texto;
+        resumo.className = 'resumo-mov' + (classe ? ' ' + classe : '');
+
+        botao.textContent = tipo
+            ? (tipo.value === 'entrada' ? 'Registrar entrada' : 'Registrar saída')
+            : 'Registrar movimentação';
+        botao.disabled = !valido;
+    }
+
+    form.addEventListener('change', atualizar);
+    qtd.addEventListener('input', atualizar);
+
+    form.querySelectorAll('.passo').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var atual = parseInt(qtd.value, 10) || 0;
+            qtd.value = Math.max(1, atual + parseInt(b.dataset.passo, 10));
+            atualizar();
+        });
+    });
+
+    if (busca) {
+        busca.addEventListener('input', function () {
+            var q = semAcento(busca.value.trim());
+            var visiveis = 0;
+            form.querySelectorAll('.item-produto').forEach(function (li) {
+                var achou = semAcento(li.dataset.busca).indexOf(q) !== -1;
+                li.hidden = !achou;
+                if (achou) visiveis++;
+            });
+            vazio.hidden = visiveis > 0;
+        });
+        // Enter na busca não deve enviar o formulário
+        busca.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') e.preventDefault();
+        });
+    }
+
+    // Produto veio escolhido pela tela de Estoque: mostra ele na lista
+    var escolhido = marcado(produtos);
+    if (escolhido) escolhido.closest('li').scrollIntoView({ block: 'nearest' });
+
+    atualizar();
+})();
+</script>
+{% endblock %}
