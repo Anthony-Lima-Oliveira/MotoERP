@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block titulo %}MotoERP{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='assistente.css') }}">
 </head>
 
 <body>
@@ -18,6 +19,8 @@
             <a href="/home" {% if request.path == '/home' %}aria-current="page"{% endif %}>Início</a>
             <a href="/produtos" {% if request.path == '/produtos' %}aria-current="page"{% endif %}>Estoque</a>
             <a href="/movimentar" {% if request.path == '/movimentar' %}aria-current="page"{% endif %}>Movimentar</a>
+            <a href="/pedidos" {% if request.path == '/pedidos' %}aria-current="page"{% endif %}>Pedidos</a>
+            <a href="/assistente" {% if request.path == '/assistente' %}aria-current="page"{% endif %}>Assistente IA</a>
             <a href="/historico" {% if request.path == '/historico' %}aria-current="page"{% endif %}>Histórico</a>
             <a href="/relatorio_estoque" {% if request.path == '/relatorio_estoque' %}aria-current="page"{% endif %}>Relatório</a>
         </nav>

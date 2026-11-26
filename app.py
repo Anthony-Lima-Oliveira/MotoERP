@@ -1,6 +1,12 @@
 from flask import Flask, render_template, request, redirect, session, flash, url_for
 from functools import wraps
 import math
+import json
+from models.conversa import estado_novo, linhas_carrinho, responder
+import secrets
+import time
+from models.assistente import catalogo, interpretar, centavos, ErroAssistente
+from models.pedido import reservado, criar_pedido, mudar_status, TRANSICOES
 import sqlite3
 import unicodedata
 from database import criar_tabelas, conectar
@@ -120,8 +126,9 @@ def aplicar_movimentacao(cursor, produto_id, tipo, quantidade, usuario):
     if tipo == "entrada":
         novo_estoque = estoque_atual + quantidade
     else:
-        if quantidade > estoque_atual:
-            raise ErroEstoque(f"Só há {estoque_atual} un. de {nome} em estoque.")
+        disponivel = estoque_atual - reservado(cursor, produto_id)
+        if quantidade > disponivel:
+            raise ErroEstoque(f"Só há {disponivel} un. de {nome} disponíveis (descontadas as reservas).")
         novo_estoque = estoque_atual - quantidade
 
     cursor.execute(
@@ -403,6 +410,12 @@ def delete_produto(id):
     conn = conectar()
     cursor = conn.cursor()
 
+    cursor.execute("BEGIN IMMEDIATE")
+    if reservado(cursor, id):
+        conn.rollback()
+        conn.close()
+        flash("Cancele ou finalize os pedidos ativos antes de excluir o produto.", "erro")
+        return redirect("/produtos")
     cursor.execute("DELETE FROM produtos WHERE id=?", (id,))
 
     conn.commit()
@@ -443,6 +456,7 @@ def movimentar():
         cursor = conn.cursor()
 
         try:
+            cursor.execute("BEGIN IMMEDIATE")
             nome, novo_estoque = aplicar_movimentacao(
                 cursor, produto_id, tipo, quantidade, session["user"]
             )
@@ -570,6 +584,135 @@ def relatorio_estoque():
         lucro_potencial=lucro_potencial,
         sem_custo=sem_custo
     )
+
+
+
+# ---------------- PEDIDOS ----------------
+@app.route("/pedidos", methods=["GET", "POST"])
+@login_required
+def pedidos():
+    token = session.setdefault("pedido_csrf", secrets.token_urlsafe(32))
+    conn = conectar()
+    try:
+        c = conn.cursor()
+        if request.method == "POST":
+            if not secrets.compare_digest(token.encode(), request.form.get("csrf", "").encode()):
+                return "Requisição inválida", 403
+            try:
+                c.execute("BEGIN IMMEDIATE")
+                if request.form.get("acao") == "criar":
+                    ids = request.form.getlist("produto_id")
+                    qs = request.form.getlist("quantidade")
+                    if len(ids) != len(qs):
+                        raise ValueError("Itens inválidos.")
+                    itens = [(pid, int(q)) for pid,q in zip(ids,qs) if pid or q]
+                    numero = criar_pedido(c, request.form.get("cliente", ""), itens, session["user"])
+                    mensagem = f"Pedido #{numero} reservado."
+                else:
+                    mudar_status(c, int(request.form.get("pedido_id", "")), request.form.get("acao", ""), session["user"], aplicar_movimentacao)
+                    mensagem = "Pedido atualizado."
+                conn.commit()
+                flash(mensagem, "ok")
+            except (ValueError, ErroEstoque, sqlite3.Error) as erro:
+                conn.rollback()
+                flash(str(erro) if not isinstance(erro, sqlite3.Error) else "Não foi possível gravar o pedido. Tente novamente.", "erro")
+            return redirect(url_for("pedidos"))
+        produtos = [(pid, nome, preco, qtd-reservado(c,pid)) for pid,nome,preco,qtd in c.execute("SELECT id,nome,preco,quantidade FROM produtos ORDER BY nome").fetchall()]
+        lista = c.execute("SELECT id,cliente,status,criado_em,criado_por FROM pedidos ORDER BY CASE WHEN status IN ('reservado','separando','pronto') THEN 0 ELSE 1 END, id DESC").fetchall()
+        itens = {p[0]: c.execute("SELECT nome,quantidade,preco_centavos FROM pedido_itens WHERE pedido_id=?", (p[0],)).fetchall() for p in lista}
+        return render_template("pedidos.html", produtos=produtos, pedidos=lista, itens=itens, transicoes=TRANSICOES, csrf=token)
+    finally:
+        conn.close()
+
+
+# ---------------- ASSISTENTE IA (TESTE LOCAL) ----------------
+@app.route('/assistente', methods=['GET','POST'])
+@login_required
+def assistente():
+    token=session.setdefault('assistente_csrf',secrets.token_urlsafe(32))
+    usuario=session['user']
+    cid=session.setdefault('assistente_conversa',secrets.token_urlsafe(24))
+    conn=conectar()
+    try:
+        conn.execute('INSERT OR IGNORE INTO assistente_conversas VALUES (?,?,0,?)',(cid,usuario,json.dumps(estado_novo())))
+        conn.commit()
+        row=conn.execute('SELECT versao,estado FROM assistente_conversas WHERE id=? AND usuario=?',(cid,usuario)).fetchone()
+        if not row:
+            session.pop('assistente_conversa',None)
+            session.pop('assistente_proposta',None)
+            return redirect(url_for('assistente'))
+        versao, bruto=row; estado=json.loads(bruto)
+        conn.execute('BEGIN')
+        try:
+            produtos=catalogo(conn.cursor())
+        except ErroAssistente as erro:
+            produtos={}; flash(str(erro),'erro')
+        conn.rollback()
+    finally:
+        conn.close()
+    if request.method=='POST':
+        if not secrets.compare_digest(token.encode(),request.form.get('csrf','').encode()):
+            return 'Requisição inválida',403
+        acao=request.form.get('acao')
+        if request.form.get('versao')!=str(versao):
+            flash('A conversa mudou. Confira o estado atual antes de continuar.','erro')
+            return redirect(url_for('assistente'))
+        if acao in ('analisar','reiniciar'):
+            session.pop('assistente_proposta',None)
+            try:
+                novo, apto = (estado_novo(),False) if acao=='reiniciar' else responder(request.form.get('mensagem','').strip(),produtos,estado)
+                conn=conectar()
+                try:
+                    cur=conn.execute('UPDATE assistente_conversas SET versao=versao+1,estado=? WHERE id=? AND usuario=? AND versao=?',(json.dumps(novo,ensure_ascii=False),cid,usuario,versao))
+                    if cur.rowcount!=1:
+                        raise ErroAssistente('A conversa mudou durante a análise. Tente novamente.')
+                    conn.commit()
+                finally:
+                    conn.close()
+                if apto:
+                    linhas=linhas_carrinho(novo,produtos)
+                    session['assistente_proposta']=dict(token=secrets.token_urlsafe(24),expira=int(time.time())+600,user=usuario,cid=cid,versao=versao+1,itens=[[i['id'],i['quantidade'],i['preco_centavos'],i['nome']] for i in linhas])
+            except (ErroAssistente,sqlite3.Error) as erro:
+                flash(str(erro) if isinstance(erro,ErroAssistente) else 'Não foi possível consultar o estoque.','erro')
+            return redirect(url_for('assistente'))
+        elif acao=='confirmar':
+            r=session.get('assistente_proposta')
+            if not r or r.get('cid')!=cid or r.get('versao')!=versao or r['user']!=usuario or r['expira']<time.time() or not secrets.compare_digest(r['token'].encode(),request.form.get('proposta','').encode()) or request.form.get('conferido')!='sim':
+                flash('Proposta inválida, expirada ou não conferida. Analise novamente.','erro')
+                return redirect(url_for('assistente'))
+            conn=conectar()
+            try:
+                c=conn.cursor(); c.execute('BEGIN IMMEDIATE')
+                if c.execute('SELECT versao FROM assistente_conversas WHERE id=? AND usuario=?',(cid,usuario)).fetchone()!=(versao,):
+                    raise ValueError('A conversa mudou. Analise novamente.')
+                if c.execute('SELECT pedido_id FROM assistente_confirmacoes WHERE token=?',(r['token'],)).fetchone():
+                    raise ValueError('Esta proposta já foi confirmada.')
+                if [[pid,qtd] for pid,qtd,_,_ in r['itens']]!=estado['carrinho']:
+                    raise ValueError('O carrinho mudou. Analise novamente.')
+                for pid,qtd,preco,nome in r['itens']:
+                    atual=c.execute('SELECT preco,nome FROM produtos WHERE id=?',(pid,)).fetchone()
+                    if not atual or centavos(atual[0])!=preco or atual[1]!=nome:
+                        raise ValueError('O catálogo ou preço mudou. Analise novamente.')
+                numero=criar_pedido(c,request.form.get('cliente',''),[(pid,qtd) for pid,qtd,_,_ in r['itens']],usuario)
+                c.execute('INSERT INTO assistente_confirmacoes(token,pedido_id) VALUES (?,?)',(r['token'],numero))
+                estado['carrinho']=[]
+                estado['historico']=(estado['historico']+[{'role':'assistente','texto':f'Pedido #{numero} reservado pelo funcionário.'}])[-20:]
+                c.execute('UPDATE assistente_conversas SET versao=versao+1,estado=? WHERE id=? AND usuario=?',(json.dumps(estado,ensure_ascii=False),cid,usuario))
+                conn.commit(); session.pop('assistente_proposta',None)
+                flash(f'Pedido #{numero} reservado a partir da proposta da IA.','ok')
+                return redirect(url_for('pedidos'))
+            except (ValueError,sqlite3.Error) as erro:
+                conn.rollback(); session.pop('assistente_proposta',None)
+                flash(str(erro) if isinstance(erro,ValueError) else 'Não foi possível confirmar o pedido.','erro')
+                return redirect(url_for('assistente'))
+            finally:
+                conn.close()
+        else:
+            return 'Ação inválida',400
+    linhas=linhas_carrinho(estado,produtos)
+    r=session.get('assistente_proposta') or {}
+    proposta=r.get('token') if r.get('cid')==cid and r.get('versao')==versao and r.get('user')==usuario and r.get('expira',0)>=time.time() and linhas and all(i['quantidade']<=i['disponivel'] for i in linhas) and r.get('itens')==[[i['id'],i['quantidade'],i['preco_centavos'],i['nome']] for i in linhas] else None
+    return render_template('assistente.html',csrf=token,versao=versao,historico=estado['historico'],linhas=linhas,total=sum(i['subtotal_centavos'] for i in linhas),proposta=proposta)
 
 
 if __name__ == "__main__":

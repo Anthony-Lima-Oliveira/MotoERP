@@ -1,4 +1,5 @@
 import sqlite3
+from models.pedido import criar_tabelas_pedidos
 
 def conectar():
     return sqlite3.connect("erp.db")
@@ -46,5 +47,8 @@ def criar_tabelas():
     adicionar_coluna(cursor, "produtos", "categoria", "TEXT")
     adicionar_coluna(cursor, "movimentacoes", "usuario", "TEXT")
 
+    criar_tabelas_pedidos(cursor)
+    cursor.execute("CREATE TABLE IF NOT EXISTS assistente_confirmacoes (token TEXT PRIMARY KEY, pedido_id INTEGER NOT NULL REFERENCES pedidos(id))")
+    cursor.execute("CREATE TABLE IF NOT EXISTS assistente_conversas (id TEXT PRIMARY KEY, usuario TEXT NOT NULL, versao INTEGER NOT NULL, estado TEXT NOT NULL)")
     conn.commit()
     conn.close()
