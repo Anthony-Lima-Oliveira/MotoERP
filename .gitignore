@@ -1,2 +1,15 @@
 __pycache__/ 
 *.pyc 
+
+__pycache__/
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.zip
+.env
+.env.*
+!.env.example
+
+secret_key.txt

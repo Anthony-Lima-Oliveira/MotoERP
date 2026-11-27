@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titulo %}Assistente IA | MotoERP{% endblock %}
+{% block conteudo %}
+<div class="cabecalho"><div><h1>Assistente IA</h1><p class="sub">Simulador de atendimento · Ollama / Qwen3 4B · execução local</p></div></div>
+<div class="ia-layout">
+<section class="painel bloco ia-chat"><div class="ia-head"><h2>Conversa de teste</h2><form method="post"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="versao" value="{{ versao }}"><button class="btn btn-fantasma btn-pequeno" name="acao" value="reiniciar">Nova conversa</button></form></div>
+<p class="sub">Simule as mensagens de um cliente. Não informe dados pessoais reais durante os testes.</p>
+<div class="ia-mensagens" id="mensagens" role="log" aria-label="Conversa">
+<div class="ia-balao ia-assistente"><small>Assistente</small><p>Olá! Qual peça ou acessório você procura?</p></div>
+{% for m in historico %}<div class="ia-balao {{ 'ia-cliente' if m.role == 'cliente' else 'ia-assistente' }}"><small>{{ 'Cliente' if m.role == 'cliente' else 'Assistente' }}</small><p>{{ m.texto }}</p></div>{% endfor %}
+</div>
+<form method="post" id="analise"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="versao" value="{{ versao }}"><input type="hidden" name="acao" value="analisar">
+<label for="mensagem">Mensagem do cliente</label><textarea id="mensagem" name="mensagem" rows="3" maxlength="1000" required placeholder="Ex.: Tem pastilha de freio?"></textarea>
+<button class="btn" type="submit" id="analisar">Enviar mensagem</button><p id="espera" class="sub" role="status" hidden>Consultando a IA local...</p></form></section>
+<section class="painel bloco ia-carrinho"><h2>Carrinho da conversa</h2><p class="sub">Rascunho. Nenhuma mercadoria é reservada até a confirmação do funcionário.</p>
+{% if linhas %}{% for item in linhas %}<div class="ia-item"><h3>{{ item.nome }} <small class="sub">ID {{ item.id }}</small></h3><p>{{ item.quantidade }} un. × {{ (item.preco_centavos/100)|real }}</p><p class="sub">Disponível agora: {{ item.disponivel }} un.</p><strong>{{ (item.subtotal_centavos/100)|real }}</strong>{% if item.quantidade > item.disponivel %}<p class="aviso aviso-erro">Estoque insuficiente.</p>{% endif %}</div>{% endfor %}<p class="ia-total"><strong>Total</strong><strong>{{ (total/100)|real }}</strong></p>
+{% if proposta %}<form method="post" id="confirmar"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="versao" value="{{ versao }}"><input type="hidden" name="acao" value="confirmar"><input type="hidden" name="proposta" value="{{ proposta }}"><label for="cliente">Cliente ou identificação</label><input id="cliente" name="cliente" maxlength="120" required placeholder="Cliente TESTE"><label class="ia-check"><input type="checkbox" name="conferido" value="sim" required> Conferi os produtos, quantidades, preços e a aceitação do cliente.</label><button class="btn" type="submit">Confirmar e reservar pedido</button><p class="sub">Proposta válida por 10 minutos; o ERP verifica o estoque e o preço novamente.</p></form>{% else %}<p class="sub">Confirme os itens e quantidades em uma nova mensagem antes de reservar.</p>{% endif %}
+{% else %}<p class="sub">Nenhum item no carrinho.</p>{% endif %}
+</section></div>
+<script>
+const mensagens=document.getElementById('mensagens');mensagens.scrollTop=mensagens.scrollHeight;
+document.getElementById('analise').addEventListener('submit',()=>{document.getElementById('analisar').disabled=true;document.getElementById('espera').hidden=false;});
+const confirmar=document.getElementById('confirmar');if(confirmar) confirmar.addEventListener('submit',()=>{confirmar.querySelector('button').disabled=true;});
+</script>
+{% endblock %}

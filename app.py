@@ -1,15 +1,32 @@
 from flask import Flask, render_template, request, redirect, session, flash, url_for
 from functools import wraps
 import math
+import json
+from models.conversa import estado_novo, linhas_carrinho, responder
+import secrets
+import time
+from models.assistente import catalogo, interpretar, centavos, ErroAssistente
+from models.pedido import reservado, reservas_por_produto, criar_pedido, mudar_status, TRANSICOES
 import sqlite3
 import unicodedata
 from database import criar_tabelas, conectar
-from datetime import datetime
+from datetime import datetime, timedelta
+import os
+import seguranca
+from models.venda import em_centavos, registrar_balcao, consultar_vendas, intervalo_periodo
 
 app = Flask(__name__)
-app.secret_key = "erp123"
+app.secret_key = seguranca.chave_secreta()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=timedelta(hours=12),
+)
 
 criar_tabelas()
+_conn_inicial = conectar()
+seguranca.garantir_usuarios(_conn_inicial)
+_conn_inicial.close()
 
 # Estoque mínimo sugerido ao cadastrar um produto novo.
 # (Cada produto tem o seu próprio mínimo, que dá para mudar ao editar.)
@@ -22,11 +39,38 @@ LIMITE_HISTORICO = 300
 #   0 id | 1 nome | 2 preço de venda | 3 quantidade | 4 custo | 5 estoque mínimo | 6 categoria
 COLUNAS_PRODUTO = "id, nome, preco, quantidade, custo, estoque_minimo, categoria"
 
-# ---------------- USUÁRIOS ----------------
-usuarios = {
-    "admin": {"senha": "123", "tipo": "admin"},
-    "operador": {"senha": "123", "tipo": "operador"}
-}
+# ---------------- SEGURANÇA DAS REQUISIÇÕES ----------------
+# /pedidos e /assistente têm a própria verificação (token próprio); o login não tem sessão ainda.
+ROTAS_COM_CSRF_PROPRIO = {"pedidos", "assistente", "login"}
+
+
+def csrf_token():
+    """Token da sessão, colocado em todo formulário que altera dados."""
+    if "csrf" not in session:
+        session["csrf"] = secrets.token_urlsafe(32)
+    return session["csrf"]
+
+
+app.jinja_env.globals["csrf_token"] = csrf_token
+
+
+@app.before_request
+def verificar_csrf():
+    if request.method != "POST" or request.endpoint in ROTAS_COM_CSRF_PROPRIO:
+        return None
+    enviado = request.form.get("csrf", "")
+    if "user" not in session or not secrets.compare_digest(csrf_token().encode(), enviado.encode()):
+        flash("Não foi possível confirmar a ação (a página pode ter expirado). Tente de novo.", "erro")
+        return redirect("/home" if "user" in session else "/")
+    return None
+
+
+@app.after_request
+def cabecalhos_de_seguranca(resposta):
+    resposta.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resposta.headers.setdefault("X-Frame-Options", "DENY")
+    resposta.headers.setdefault("Referrer-Policy", "same-origin")
+    return resposta
 
 
 # ---------------- FORMATAÇÃO ----------------
@@ -39,6 +83,14 @@ def real(valor):
         valor = 0.0
     texto = f"{valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return "R$ " + texto
+
+
+@app.template_filter("centavos_real")
+def centavos_real(valor):
+    """Formata valores inteiros sem conversão para float."""
+    sinal = "-" if valor < 0 else ""
+    reais, resto = divmod(abs(valor), 100)
+    return f"R$ {sinal}" + f"{reais:,}".replace(",", ".") + f",{resto:02d}"
 
 
 @app.template_filter("data_br")
@@ -120,8 +172,9 @@ def aplicar_movimentacao(cursor, produto_id, tipo, quantidade, usuario):
     if tipo == "entrada":
         novo_estoque = estoque_atual + quantidade
     else:
-        if quantidade > estoque_atual:
-            raise ErroEstoque(f"Só há {estoque_atual} un. de {nome} em estoque.")
+        disponivel = estoque_atual - reservado(cursor, produto_id)
+        if quantidade > disponivel:
+            raise ErroEstoque(f"Só há {disponivel} un. de {nome} disponíveis (descontadas as reservas).")
         novo_estoque = estoque_atual - quantidade
 
     cursor.execute(
@@ -204,9 +257,21 @@ def login():
         user = request.form.get("usuario", "").strip()
         senha = request.form.get("senha", "")
 
-        if user in usuarios and usuarios[user]["senha"] == senha:
+        ip = request.remote_addr or "?"
+        espera = seguranca.segundos_de_bloqueio(ip, user)
+        if espera:
+            erro = f"Muitas tentativas erradas. Tente de novo em {math.ceil(espera / 60)} min."
+            return render_template("login.html", erro=erro), 429
+
+        conn = conectar()
+        tipo = seguranca.conferir_login(conn, ip, user, senha)
+        conn.close()
+
+        if tipo:
+            session.clear()  # começa uma sessão nova a cada login
+            session.permanent = True
             session["user"] = user
-            session["tipo"] = usuarios[user]["tipo"]
+            session["tipo"] = tipo
             return redirect("/home")
 
         erro = "Usuário ou senha incorretos."
@@ -286,6 +351,7 @@ def produtos():
     cursor = conn.cursor()
     cursor.execute(f"SELECT {COLUNAS_PRODUTO} FROM produtos")
     todos = cursor.fetchall()
+    reservas = reservas_por_produto(cursor)
     conn.close()
 
     categorias = sorted({p[6] for p in todos if p[6]}, key=sem_acento)
@@ -306,6 +372,7 @@ def produtos():
     return render_template(
         "produtos.html",
         produtos=lista,
+        reservas=reservas,
         total=len(todos),
         categorias=categorias,
         busca=busca,
@@ -366,6 +433,8 @@ def editar_produto(id):
         flash("Produto não encontrado.", "erro")
         return redirect("/produtos")
 
+    em_reserva = reservado(cursor, id)
+
     if request.method == "POST":
         try:
             dados = ler_dados_produto(request.form, cadastrando=False)
@@ -375,7 +444,7 @@ def editar_produto(id):
             conn.close()
             flash(str(erro), "erro")
             # mostra o formulário de novo, com o que a pessoa já tinha digitado
-            return render_template("editar_produto.html", p=produto, form=request.form, categorias=categorias)
+            return render_template("editar_produto.html", p=produto, form=request.form, categorias=categorias, em_reserva=em_reserva)
 
         cursor.execute("""
             UPDATE produtos
@@ -394,7 +463,7 @@ def editar_produto(id):
     categorias = sorted((c[0] for c in cursor.fetchall()), key=sem_acento)
     conn.close()
 
-    return render_template("editar_produto.html", p=produto, form={}, categorias=categorias)
+    return render_template("editar_produto.html", p=produto, form={}, categorias=categorias, em_reserva=em_reserva)
 
 
 @app.route("/delete_produto/<id>", methods=["POST"])
@@ -403,6 +472,12 @@ def delete_produto(id):
     conn = conectar()
     cursor = conn.cursor()
 
+    cursor.execute("BEGIN IMMEDIATE")
+    if reservado(cursor, id):
+        conn.rollback()
+        conn.close()
+        flash("Cancele ou finalize os pedidos ativos antes de excluir o produto.", "erro")
+        return redirect("/produtos")
     cursor.execute("DELETE FROM produtos WHERE id=?", (id,))
 
     conn.commit()
@@ -443,6 +518,7 @@ def movimentar():
         cursor = conn.cursor()
 
         try:
+            cursor.execute("BEGIN IMMEDIATE")
             nome, novo_estoque = aplicar_movimentacao(
                 cursor, produto_id, tipo, quantidade, session["user"]
             )
@@ -469,7 +545,13 @@ def movimentar():
     cursor = conn.cursor()
 
     cursor.execute("SELECT id, nome, quantidade, estoque_minimo FROM produtos")
-    lista_produtos = sorted(cursor.fetchall(), key=lambda p: sem_acento(p[1]))
+    linhas = cursor.fetchall()
+    reservas = reservas_por_produto(cursor)
+    # (id, nome, físico, mínimo, reservado): o disponível é físico − reservado
+    lista_produtos = sorted(
+        ((pid, nome, qtd, minimo, reservas.get(pid, 0)) for pid, nome, qtd, minimo in linhas),
+        key=lambda p: sem_acento(p[1])
+    )
 
     cursor.execute("""
         SELECT m.data, m.produto_id, p.nome, m.tipo, m.quantidade
@@ -572,5 +654,184 @@ def relatorio_estoque():
     )
 
 
+
+# ---------------- VENDAS ----------------
+@app.route("/vendas", methods=["GET", "POST"])
+@login_required
+def vendas():
+    periodo = request.args.get("periodo", "hoje")
+    if periodo not in ("hoje", "semana", "mes"):
+        periodo = "hoje"
+    admin = session.get("tipo") == "admin"
+    conn = conectar()
+    try:
+        c = conn.cursor()
+        if request.method == "POST":
+            try:
+                ids = request.form.getlist("produto_id")
+                qs = request.form.getlist("quantidade")
+                precos = request.form.getlist("preco_visto")
+                if len(ids) != len(qs) or len(ids) != len(precos):
+                    raise ValueError("Itens inválidos.")
+                itens = [(pid, int(qtd), int(preco)) for pid, qtd, preco in zip(ids, qs, precos)]
+                c.execute("BEGIN IMMEDIATE")
+                numero = registrar_balcao(c, request.form.get("cliente", ""), itens,
+                    session["user"], request.form.get("venda_token", ""), aplicar_movimentacao)
+                conn.commit()
+                flash(f"Venda #{numero} registrada e estoque atualizado.", "ok")
+            except (ValueError, ErroEstoque, sqlite3.Error) as erro:
+                conn.rollback()
+                flash(str(erro) if not isinstance(erro, sqlite3.Error) else
+                    "Não foi possível gravar a venda. Tente novamente.", "erro")
+            return redirect(url_for("vendas", periodo=periodo))
+
+        c.execute("BEGIN")
+        lista = c.execute("SELECT id,nome,preco,quantidade FROM produtos ORDER BY nome").fetchall()
+        reservas = reservas_por_produto(c)
+        produtos = []
+        for pid, nome, preco, fisico in lista:
+            try:
+                produtos.append((pid, nome, em_centavos(preco), fisico-reservas.get(pid, 0)))
+            except ValueError:
+                # Um cadastro antigo inválido não impede a abertura da tela.
+                continue
+        inicio, fim = intervalo_periodo(periodo, datetime.now().date())
+        resumo, historico = consultar_vendas(c, inicio, fim, admin)
+        return render_template("vendas.html", produtos=produtos, periodo=periodo,
+            admin=admin, resumo=resumo, vendas=historico, venda_token=secrets.token_urlsafe(32))
+    finally:
+        conn.close()
+
+
+# ---------------- PEDIDOS ----------------
+@app.route("/pedidos", methods=["GET", "POST"])
+@login_required
+def pedidos():
+    token = session.setdefault("pedido_csrf", secrets.token_urlsafe(32))
+    conn = conectar()
+    try:
+        c = conn.cursor()
+        if request.method == "POST":
+            if not secrets.compare_digest(token.encode(), request.form.get("csrf", "").encode()):
+                return "Requisição inválida", 403
+            try:
+                c.execute("BEGIN IMMEDIATE")
+                if request.form.get("acao") == "criar":
+                    ids = request.form.getlist("produto_id")
+                    qs = request.form.getlist("quantidade")
+                    if len(ids) != len(qs):
+                        raise ValueError("Itens inválidos.")
+                    itens = [(pid, int(q)) for pid,q in zip(ids,qs) if pid or q]
+                    numero = criar_pedido(c, request.form.get("cliente", ""), itens, session["user"])
+                    mensagem = f"Pedido #{numero} reservado."
+                else:
+                    mudar_status(c, int(request.form.get("pedido_id", "")), request.form.get("acao", ""), session["user"], aplicar_movimentacao)
+                    mensagem = "Pedido atualizado."
+                conn.commit()
+                flash(mensagem, "ok")
+            except (ValueError, ErroEstoque, sqlite3.Error) as erro:
+                conn.rollback()
+                flash(str(erro) if not isinstance(erro, sqlite3.Error) else "Não foi possível gravar o pedido. Tente novamente.", "erro")
+            return redirect(url_for("pedidos"))
+        produtos = [(pid, nome, preco, qtd-reservado(c,pid)) for pid,nome,preco,qtd in c.execute("SELECT id,nome,preco,quantidade FROM produtos ORDER BY nome").fetchall()]
+        lista = c.execute("SELECT id,cliente,status,criado_em,criado_por FROM pedidos ORDER BY CASE WHEN status IN ('reservado','separando','pronto') THEN 0 ELSE 1 END, id DESC").fetchall()
+        itens = {p[0]: c.execute("SELECT nome,quantidade,preco_centavos FROM pedido_itens WHERE pedido_id=?", (p[0],)).fetchall() for p in lista}
+        return render_template("pedidos.html", produtos=produtos, pedidos=lista, itens=itens, transicoes=TRANSICOES, csrf=token)
+    finally:
+        conn.close()
+
+
+# ---------------- ASSISTENTE IA (TESTE LOCAL) ----------------
+@app.route('/assistente', methods=['GET','POST'])
+@login_required
+def assistente():
+    token=session.setdefault('assistente_csrf',secrets.token_urlsafe(32))
+    usuario=session['user']
+    cid=session.setdefault('assistente_conversa',secrets.token_urlsafe(24))
+    conn=conectar()
+    try:
+        conn.execute('INSERT OR IGNORE INTO assistente_conversas VALUES (?,?,0,?)',(cid,usuario,json.dumps(estado_novo())))
+        conn.commit()
+        row=conn.execute('SELECT versao,estado FROM assistente_conversas WHERE id=? AND usuario=?',(cid,usuario)).fetchone()
+        if not row:
+            session.pop('assistente_conversa',None)
+            session.pop('assistente_proposta',None)
+            return redirect(url_for('assistente'))
+        versao, bruto=row; estado=json.loads(bruto)
+        conn.execute('BEGIN')
+        try:
+            produtos=catalogo(conn.cursor())
+        except ErroAssistente as erro:
+            produtos={}; flash(str(erro),'erro')
+        conn.rollback()
+    finally:
+        conn.close()
+    if request.method=='POST':
+        if not secrets.compare_digest(token.encode(),request.form.get('csrf','').encode()):
+            return 'Requisição inválida',403
+        acao=request.form.get('acao')
+        if request.form.get('versao')!=str(versao):
+            flash('A conversa mudou. Confira o estado atual antes de continuar.','erro')
+            return redirect(url_for('assistente'))
+        if acao in ('analisar','reiniciar'):
+            session.pop('assistente_proposta',None)
+            try:
+                novo, apto = (estado_novo(),False) if acao=='reiniciar' else responder(request.form.get('mensagem','').strip(),produtos,estado)
+                conn=conectar()
+                try:
+                    cur=conn.execute('UPDATE assistente_conversas SET versao=versao+1,estado=? WHERE id=? AND usuario=? AND versao=?',(json.dumps(novo,ensure_ascii=False),cid,usuario,versao))
+                    if cur.rowcount!=1:
+                        raise ErroAssistente('A conversa mudou durante a análise. Tente novamente.')
+                    conn.commit()
+                finally:
+                    conn.close()
+                if apto:
+                    linhas=linhas_carrinho(novo,produtos)
+                    session['assistente_proposta']=dict(token=secrets.token_urlsafe(24),expira=int(time.time())+600,user=usuario,cid=cid,versao=versao+1,itens=[[i['id'],i['quantidade'],i['preco_centavos'],i['nome']] for i in linhas])
+            except (ErroAssistente,sqlite3.Error) as erro:
+                flash(str(erro) if isinstance(erro,ErroAssistente) else 'Não foi possível consultar o estoque.','erro')
+            return redirect(url_for('assistente'))
+        elif acao=='confirmar':
+            r=session.get('assistente_proposta')
+            if not r or r.get('cid')!=cid or r.get('versao')!=versao or r['user']!=usuario or r['expira']<time.time() or not secrets.compare_digest(r['token'].encode(),request.form.get('proposta','').encode()) or request.form.get('conferido')!='sim':
+                flash('Proposta inválida, expirada ou não conferida. Analise novamente.','erro')
+                return redirect(url_for('assistente'))
+            conn=conectar()
+            try:
+                c=conn.cursor(); c.execute('BEGIN IMMEDIATE')
+                if c.execute('SELECT versao FROM assistente_conversas WHERE id=? AND usuario=?',(cid,usuario)).fetchone()!=(versao,):
+                    raise ValueError('A conversa mudou. Analise novamente.')
+                if c.execute('SELECT pedido_id FROM assistente_confirmacoes WHERE token=?',(r['token'],)).fetchone():
+                    raise ValueError('Esta proposta já foi confirmada.')
+                if [[pid,qtd] for pid,qtd,_,_ in r['itens']]!=estado['carrinho']:
+                    raise ValueError('O carrinho mudou. Analise novamente.')
+                for pid,qtd,preco,nome in r['itens']:
+                    atual=c.execute('SELECT preco,nome FROM produtos WHERE id=?',(pid,)).fetchone()
+                    if not atual or centavos(atual[0])!=preco or atual[1]!=nome:
+                        raise ValueError('O catálogo ou preço mudou. Analise novamente.')
+                numero=criar_pedido(c,request.form.get('cliente',''),[(pid,qtd) for pid,qtd,_,_ in r['itens']],usuario)
+                c.execute('INSERT INTO assistente_confirmacoes(token,pedido_id) VALUES (?,?)',(r['token'],numero))
+                estado['carrinho']=[]
+                estado['historico']=(estado['historico']+[{'role':'assistente','texto':f'Pedido #{numero} reservado pelo funcionário.'}])[-20:]
+                c.execute('UPDATE assistente_conversas SET versao=versao+1,estado=? WHERE id=? AND usuario=?',(json.dumps(estado,ensure_ascii=False),cid,usuario))
+                conn.commit(); session.pop('assistente_proposta',None)
+                flash(f'Pedido #{numero} reservado a partir da proposta da IA.','ok')
+                return redirect(url_for('pedidos'))
+            except (ValueError,sqlite3.Error) as erro:
+                conn.rollback(); session.pop('assistente_proposta',None)
+                flash(str(erro) if isinstance(erro,ValueError) else 'Não foi possível confirmar o pedido.','erro')
+                return redirect(url_for('assistente'))
+            finally:
+                conn.close()
+        else:
+            return 'Ação inválida',400
+    linhas=linhas_carrinho(estado,produtos)
+    r=session.get('assistente_proposta') or {}
+    proposta=r.get('token') if r.get('cid')==cid and r.get('versao')==versao and r.get('user')==usuario and r.get('expira',0)>=time.time() and linhas and all(i['quantidade']<=i['disponivel'] for i in linhas) and r.get('itens')==[[i['id'],i['quantidade'],i['preco_centavos'],i['nome']] for i in linhas] else None
+    return render_template('assistente.html',csrf=token,versao=versao,historico=estado['historico'],linhas=linhas,total=sum(i['subtotal_centavos'] for i in linhas),proposta=proposta)
+
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Só abre para este computador. Para ligar o modo de depuração (só em desenvolvimento):
+    # defina MOTOERP_DEBUG=1 antes de rodar.
+    app.run(host="127.0.0.1", debug=os.environ.get("MOTOERP_DEBUG") == "1")

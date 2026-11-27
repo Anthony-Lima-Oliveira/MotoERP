@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block titulo %}Vendas | MotoERP{% endblock %}
+{% block estilos %}<link rel="stylesheet" href="{{ url_for('static', filename='vendas.css') }}">{% endblock %}
+{% block conteudo %}
+<div class="cabecalho vendas-cabecalho">
+    <div><h1>Vendas</h1><p class="sub">Registre vendas e acompanhe os resultados da loja.</p></div>
+    <a class="btn" href="#nova-venda">+ Nova venda</a>
+</div>
+<nav class="vendas-periodos" aria-label="Período das vendas">
+    {% for valor, nome in [('hoje','Hoje'),('semana','Esta semana'),('mes','Este mês')] %}
+    <a class="btn {{ '' if periodo == valor else 'btn-fantasma' }}" href="{{ url_for('vendas', periodo=valor) }}" {% if periodo == valor %}aria-current="page"{% endif %}>{{ nome }}</a>
+    {% endfor %}
+</nav>
+<section class="vendas-resumo bloco" aria-label="Resumo das vendas">
+    <div class="painel venda-indicador"><p>Faturamento</p><strong>{{ resumo.total|centavos_real }}</strong><small>{{ resumo.quantidade }} venda(s) no período</small></div>
+    {% if admin %}
+    <div class="painel venda-indicador"><p>Custo das mercadorias</p><strong>{{ resumo.custo|centavos_real if resumo.custo is not none else '—' }}</strong><small>Custo no momento da venda</small></div>
+    <div class="painel venda-indicador"><p>Lucro bruto</p><strong class="{{ 'venda-negativo' if resumo.lucro is not none and resumo.lucro < 0 else 'venda-positivo' if resumo.lucro is not none else '' }}">{{ resumo.lucro|centavos_real if resumo.lucro is not none else '—' }}</strong><small>Faturamento menos custo</small></div>
+    <div class="painel venda-indicador"><p>Margem bruta</p><strong class="venda-margem">{{ ('%.2f'|format(resumo.margem)).replace('.', ',') ~ '%' if resumo.margem is not none else '—' }}</strong><small>Não inclui despesas da loja</small></div>
+    {% endif %}
+</section>
+{% if admin and resumo.sem_custo %}<p class="aviso aviso-alerta">{{ resumo.sem_custo }} venda(s) sem custo histórico completo. Custo, lucro e margem do período ficam indeterminados.</p>{% endif %}
+{% if admin and resumo.total > 0 and resumo.custo is not none %}
+<section class="painel bloco venda-grafico">
+    <h2>Resultado financeiro</h2>
+    {% set escala = [resumo.total, resumo.custo, resumo.lucro|abs, 1]|max %}
+    {% for nome, valor, classe in [('Faturamento',resumo.total,'barra-faturamento'),('Custo',resumo.custo,'barra-custo'),('Lucro bruto',resumo.lucro,'barra-perda' if resumo.lucro < 0 else 'barra-lucro')] %}
+    <div class="venda-barra-label"><span>{{ nome }}</span><strong>{{ valor|centavos_real }}</strong></div>
+    <div class="venda-barra" aria-hidden="true"><div class="{{ classe }}" style="width:{{ (valor|abs / escala * 100)|round(2) }}%"></div></div>
+    {% endfor %}
+</section>
+{% endif %}
+<section id="nova-venda" class="painel bloco">
+    <h2>Nova venda no balcão</h2>
+    <p class="sub">Registre apenas vendas concluídas. Para separar mercadorias antes da entrega, use Pedidos.</p>
+    <form method="post" action="{{ url_for('vendas', periodo=periodo) }}" id="form-venda">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="venda_token" value="{{ venda_token }}">
+        <label for="cliente-venda">Cliente (opcional)</label>
+        <input id="cliente-venda" name="cliente" maxlength="120" placeholder="Consumidor balcão">
+        <div id="venda-itens">
+            <div class="venda-item">
+                <div><label>Produto<select name="produto_id" required><option value="">Selecione</option>{% for p in produtos %}<option value="{{ p[0] }}" data-preco="{{ p[2] }}" data-disponivel="{{ p[3] }}" {% if p[3] <= 0 %}disabled{% endif %}>{{ p[1] }} · {{ p[2]|centavos_real }} · {{ p[3] }} disp. ({{ p[0] }})</option>{% endfor %}</select></label><input type="hidden" name="preco_visto" value=""></div>
+                <div><label>Quantidade<input type="number" name="quantidade" min="1" max="1000000" step="1" value="1" required></label></div>
+                <div class="venda-subtotal"><small>Subtotal</small><strong data-subtotal>R$ 0,00</strong></div>
+                <button type="button" class="btn btn-fantasma btn-pequeno" data-remover>Remover</button>
+            </div>
+        </div>
+        <button type="button" id="venda-adicionar" class="btn btn-fantasma">+ Adicionar item</button>
+        <p id="venda-alerta" class="venda-negativo" role="alert" hidden></p>
+        <div class="venda-total"><span>Total da venda</span><strong id="venda-total" aria-live="polite">R$ 0,00</strong></div>
+        <button type="submit" class="btn" id="venda-confirmar" disabled>Registrar venda e dar baixa</button>
+        <noscript><p class="nota">Ative o JavaScript para revisar o total e registrar uma venda.</p></noscript>
+    </form>
+</section>
+<section class="bloco">
+    <div class="titulo-secao"><h2>Histórico de vendas</h2><span class="sub">Até 100 vendas do período</span></div>
+    <p class="nota">Pedidos finalizados antes desta atualização e saídas manuais não entram no histórico financeiro.</p>
+    {% if vendas %}
+    <div class="tabela-wrap"><table class="vendas-tabela">
+        <thead><tr><th>Venda / data</th><th>Cliente / origem</th><th>Produtos</th><th class="num">Valor</th>{% if admin %}<th class="num">Custo</th><th class="num">Lucro bruto</th>{% endif %}</tr></thead>
+        <tbody>{% for v in vendas %}<tr>
+            <td data-label="Venda / data"><div><strong>#{{ v.id }}</strong><br><small>{{ v.data|data_br }} · {{ v.usuario }}</small></div></td>
+            <td data-label="Cliente / origem"><div>{{ v.cliente }}<br><small>{{ {'balcao':'Balcão','pedido':'Pedido','assistente':'Assistente IA'}[v.origem] }}{% if v.pedido_id %} #{{ v.pedido_id }}{% endif %}</small></div></td>
+            <td data-label="Produtos"><div>{% for i in v.itens %}<div>{{ i.quantidade }} × {{ i.nome }}<small> — {{ i.preco|centavos_real }}/un.{% if admin %} · custo {{ i.custo|centavos_real if i.custo is not none else 'não informado' }}{% endif %}</small></div>{% endfor %}</div></td>
+            <td data-label="Valor" class="num">{{ v.total|centavos_real }}</td>
+            {% if admin %}<td data-label="Custo" class="num">{{ v.custo|centavos_real if v.custo is not none else '—' }}</td><td data-label="Lucro bruto" class="num {{ 'venda-negativo' if v.lucro is not none and v.lucro < 0 else 'venda-positivo' if v.lucro is not none else '' }}">{{ v.lucro|centavos_real if v.lucro is not none else 'Indeterminado' }}</td>{% endif %}
+        </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="painel vazio">Nenhuma venda registrada neste período.</div>{% endif %}
+</section>
+<script src="{{ url_for('static', filename='vendas.js') }}" defer></script>
+{% endblock %}

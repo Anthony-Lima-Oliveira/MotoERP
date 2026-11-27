@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Pedidos | MotoERP{% endblock %}
+{% block conteudo %}
+<div class="cabecalho"><div><h1>Pedidos</h1><p class="sub">Reserve, separe e finalize mercadorias.</p></div></div>
+<section class="painel bloco">
+<h2>Novo pedido</h2>
+<form method="post" action="{{ url_for('pedidos') }}">
+<input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="acao" value="criar">
+<label for="cliente">Cliente ou identificação</label><input id="cliente" name="cliente" maxlength="120" required>
+<div id="itens">
+<div class="form-produto pedido-item"><div class="span-2"><label>Produto<select name="produto_id" required><option value="">Selecione</option>{% for p in produtos %}<option value="{{ p[0] }}" {% if p[3] <= 0 %}disabled{% endif %}>{{ p[1] }} — {{ p[2]|real }} — {{ p[3] }} disp. ({{ p[0] }})</option>{% endfor %}</select></label></div><div><label>Quantidade<input type="number" name="quantidade" min="1" max="1000000" required></label></div><div><button type="button" class="btn btn-fantasma" data-remover>Remover</button></div></div>
+</div>
+<button type="button" class="btn btn-fantasma" id="adicionar">Adicionar item</button>
+<button type="submit" class="btn">Reservar pedido</button>
+</form>
+</section>
+{% set nomes = {'reservado':'Reservado','separando':'Em separação','pronto':'Pronto para retirada','finalizado':'Finalizado','cancelado':'Cancelado'} %}
+{% set acoes = {'separando':'Iniciar separação','pronto':'Confirmar separação','finalizado':'Finalizar venda e dar baixa','cancelado':'Cancelar reserva'} %}
+<section class="painel bloco"><h2>Últimos pedidos</h2>
+{% for p in pedidos %}
+<div class="painel bloco"><h3>#{{ p[0] }} — {{ p[1] }}</h3><p>{{ nomes[p[2]] }} · {{ p[3]|data_br }} · {{ p[4] }}</p>
+<ul>{% for nome, quantidade, preco_centavos in itens[p[0]] %}<li>{{ nome }} — {{ quantidade }} un. × {{ (preco_centavos/100)|real }}</li>{% endfor %}</ul>
+{% set total = namespace(valor=0) %}{% for nome, quantidade, preco_centavos in itens[p[0]] %}{% set total.valor = total.valor+quantidade*preco_centavos %}{% endfor %}
+<p><strong>Total: {{ (total.valor/100)|real }}</strong></p>
+{% for acao in transicoes.get(p[2], ()) %}<form method="post" action="{{ url_for('pedidos') }}" style="display:inline-block"><input type="hidden" name="csrf" value="{{ csrf }}"><input type="hidden" name="pedido_id" value="{{ p[0] }}"><button class="btn {% if acao == 'cancelado' %}btn-fantasma{% endif %}" name="acao" value="{{ acao }}">{{ acoes[acao] }}</button></form>{% endfor %}
+</div>
+{% else %}<p class="sub">Nenhum pedido registrado.</p>{% endfor %}
+</section>
+<script>
+const itens = document.getElementById('itens');
+const modelo = itens.firstElementChild.cloneNode(true);
+document.getElementById('adicionar').addEventListener('click', () => {if(itens.children.length < 50) itens.appendChild(modelo.cloneNode(true));});
+itens.addEventListener('click', e => {if(e.target.matches('[data-remover]') && itens.children.length > 1) e.target.closest('.pedido-item').remove();});
+</script>
+{% endblock %}
