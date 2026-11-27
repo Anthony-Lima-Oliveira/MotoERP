@@ -6,6 +6,7 @@
     <title>{% block titulo %}MotoERP{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='assistente.css') }}">
+    {% block estilos %}{% endblock %}
 </head>
 
 <body>
@@ -20,6 +21,7 @@
             <a href="/produtos" {% if request.path == '/produtos' %}aria-current="page"{% endif %}>Estoque</a>
             <a href="/movimentar" {% if request.path == '/movimentar' %}aria-current="page"{% endif %}>Movimentar</a>
             <a href="/pedidos" {% if request.path == '/pedidos' %}aria-current="page"{% endif %}>Pedidos</a>
+            <a href="/vendas" {% if request.path == '/vendas' %}aria-current="page"{% endif %}>Vendas</a>
             <a href="/assistente" {% if request.path == '/assistente' %}aria-current="page"{% endif %}>Assistente IA</a>
             <a href="/historico" {% if request.path == '/historico' %}aria-current="page"{% endif %}>Histórico</a>
             <a href="/relatorio_estoque" {% if request.path == '/relatorio_estoque' %}aria-current="page"{% endif %}>Relatório</a>

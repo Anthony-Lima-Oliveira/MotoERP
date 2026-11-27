@@ -1,6 +1,7 @@
 """Pedidos locais: todas as escritas devem ocorrer em BEGIN IMMEDIATE."""
 from datetime import datetime
 from decimal import Decimal, ROUND_HALF_UP
+from models.venda import registrar_pedido_finalizado
 
 ATIVOS = ('reservado', 'separando', 'pronto')
 TRANSICOES = {'reservado': ('separando', 'cancelado'), 'separando': ('pronto', 'cancelado'), 'pronto': ('finalizado', 'cancelado')}
@@ -24,6 +25,14 @@ def reservado(c, produto_id):
     return c.execute('''SELECT COALESCE(SUM(i.quantidade),0) FROM pedido_itens i
         JOIN pedidos p ON p.id=i.pedido_id WHERE i.produto_id=?
         AND p.status IN ('reservado','separando','pronto')''', (produto_id,)).fetchone()[0]
+
+
+def reservas_por_produto(c):
+    """Devolve {produto_id: quantidade reservada} para todos os produtos de uma vez."""
+    linhas = c.execute('''SELECT i.produto_id, SUM(i.quantidade) FROM pedido_itens i
+        JOIN pedidos p ON p.id=i.pedido_id
+        WHERE p.status IN ('reservado','separando','pronto') GROUP BY i.produto_id''').fetchall()
+    return {pid: qtd for pid, qtd in linhas}
 
 
 def criar_pedido(c, cliente, itens, usuario):
@@ -65,3 +74,4 @@ def mudar_status(c, pedido_id, destino, usuario, movimentar):
             raise ValueError('Pedido sem itens.')
         for pid, qtd in itens:
             movimentar(c, pid, 'saida', qtd, usuario)
+        registrar_pedido_finalizado(c, pedido_id, usuario)

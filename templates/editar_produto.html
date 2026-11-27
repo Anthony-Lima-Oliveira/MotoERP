@@ -11,6 +11,7 @@
 </div>
 
 <form method="POST" class="painel painel-estreito form-editar" data-calc-margem>
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <div class="span-2">
         <label for="e-nome">Nome</label>
         <input id="e-nome" name="nome" value="{{ form.get('nome', p[1]) }}" required>
@@ -46,7 +47,7 @@
     <p class="dica span-todos" data-margem-saida aria-live="polite"></p>
 
     <p class="nota span-todos">
-        Quantidade atual: <strong>{{ p[3] }}</strong>. Para mudar a quantidade, use
+        Quantidade atual: <strong>{{ p[3] }}</strong>{% if em_reserva %} ({{ em_reserva }} reservadas em pedidos, {{ p[3] - em_reserva }} disponíveis){% endif %}. Para mudar a quantidade, use
         <a href="{{ url_for('movimentar', produto=p[0]) }}">Movimentar</a>, assim fica tudo registrado no histórico.
     </p>
 

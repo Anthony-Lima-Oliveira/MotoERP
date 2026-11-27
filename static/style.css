@@ -940,3 +940,7 @@ button:disabled:hover { background: var(--azul-botao); }
 @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; }
 }
+
+/* Reservas de pedidos (físico x disponível) */
+.reserva { display: block; color: var(--apagado); font-size: 12px; margin-top: 2px; }
+.prod-estoque .reserva { text-align: right; }

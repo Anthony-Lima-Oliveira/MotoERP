@@ -30,6 +30,7 @@
 <section class="painel bloco">
     <h2>Novo produto</h2>
     <form method="POST" action="/add_produto" class="form-produto" data-calc-margem>
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
         <div>
             <label for="p-id">ID</label>
             <input id="p-id" name="id" required>
@@ -127,6 +128,8 @@
                     {% if p[3] <= 0 %}<span class="selo selo-erro">Sem estoque</span>
                     {% elif p[3] <= p[5] %}<span class="selo selo-alerta" title="Mínimo definido: {{ p[5] }}">Estoque baixo</span>{% endif %}
                     <strong class="qtd">{{ p[3] }}</strong>
+                    {% set r = reservas.get(p[0], 0) %}
+                    {% if r %}<small class="reserva" title="Separadas em pedidos ainda não finalizados">{{ r }} reservadas · {{ p[3] - r }} disp.</small>{% endif %}
                 </td>
 
                 {% if tipo == 'admin' %}
@@ -136,6 +139,7 @@
                         <form method="POST" action="/delete_produto/{{ p[0] }}"
                               data-nome="{{ p[1] }}"
                               onsubmit="return confirm('Excluir o produto ' + this.dataset.nome + '?');">
+                            <input type="hidden" name="csrf" value="{{ csrf_token() }}">
                             <button class="btn-perigo btn-pequeno">Excluir</button>
                         </form>
                     </div>
